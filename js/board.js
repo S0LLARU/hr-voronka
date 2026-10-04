@@ -37,7 +37,7 @@ function Card({r, v, now, current, onOpen}){
   }
   let meta = null;
   if(ph === 'search' && r.recruiter){
-    const n = r.candidates.length;
+    const n = r.candidates.filter(c => c.stage !== 'rejected').length;
     meta = html`<div className="c-meta"><span>Рекрутер: ${shortName(r.recruiter)}</span>
       <span className="num">${hires.length ? 'выбран ' + hires.length + ' из ' + r.seats : n ? n + ' ' + Model.plural(n, 'кандидат','кандидата','кандидатов') : ''}</span></div>`;
   }
@@ -52,7 +52,7 @@ function Card({r, v, now, current, onOpen}){
     </div>
     <div className="c-sub">${r.dept} / ${r.project}</div>
     ${meta}
-    ${pr && html`<div className="c-steps" aria-hidden="true">${Array.from({length:pr.n}, (_, i) => html`<i key=${i} className=${i <= pr.at ? 'on' : ''}/>`)}</div>`}
+    ${pr && html`<div className="c-steps" aria-hidden="true">${Array.from({length:pr.n}, (_, i) => html`<i key=${i} className=${i < pr.at ? 'on' : i === pr.at ? 'cur' : ''}/>`)}</div>`}
     <${TurnLine} t=${t} v=${v} now=${now}/>
   </button>`;
 }

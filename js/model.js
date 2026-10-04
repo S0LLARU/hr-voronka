@@ -348,7 +348,7 @@ const Model = (function(){
       const r = find(S, p.id), h = hire(r, p.hid);
       h.stage = 'done'; h.stageAt = at; h.fotAt = {at, by, comment:p.comment};
       log(r, by, at, 'Учёл в ФОТ: ' + h.name, p.comment, 'fot');
-      if(activeHires(r).length >= r.seats && !openHires(r).length){ status(r, 'closed', at); r.closedAt = at; log(r, by, at, 'Вакансия закрыта', '', 'closed'); }
+      if(activeHires(r).length >= r.seats && !openHires(r).length){ status(r, 'closed', at); r.closedAt = at; log(r, by, at, 'Заявка закрыта', '', 'closed'); }
     },
     cancel(S, by, at, p){ const r = find(S, p.id); status(r, 'cancelled', at); r.closedAt = at; r.cancel = {reason:p.reason, comment:p.comment}; log(r, by, at, 'Отменил заявку: ' + p.reason.toLowerCase(), p.comment, 'cancel'); }
   };
@@ -387,11 +387,11 @@ const Model = (function(){
     }, o);
 
     const F = {
-      montage: base({title:'Монтажёр', dept:'Продакшн', project:'Project X', manager:'dan', reason:'grow',
+      montage: base({title:'Монтажёр', dept:'Продакшн', project:'Новогодняя кампания', manager:'dan', reason:'grow',
         duties:'Монтаж рекламных роликов и видео для соцсетей, цветокоррекция, подготовка версий под площадки.',
         reqs:'Портфолио с коммерческими роликами. Уверенно Premiere Pro и DaVinci Resolve.', experience:'От 2 лет',
         skills:'Premiere Pro, DaVinci Resolve, After Effects на базовом уровне', personal:'Аккуратность, держит сроки',
-        salary:'450 000 ₸', bonus:'Премия по итогам проекта', start:day(21), comment:'Под съёмки Project X в ноябре нужен второй монтажёр.'}),
+        salary:'450 000 ₸', bonus:'Премия по итогам проекта', start:day(21), comment:'Под съёмки новогодней кампании в ноябре нужен второй монтажёр.'}),
       smm: base({title:'SMM-менеджер', dept:'Маркетинг', project:'Осенняя кампания', manager:'mad', reason:'replace',
         duties:'Ведение Instagram и Telegram, контент-план, работа с блогерами, отчёты по охватам.',
         reqs:'Кейсы с ростом аккаунтов, умение работать с таргетологом.', experience:'От 1 года', skills:'Контент-план, Canva, Meta Ads Manager',
@@ -403,23 +403,23 @@ const Model = (function(){
       sales: base({title:'Менеджер по продажам', seats:2, dept:'Продажи', project:'Корпоративные клиенты', manager:'ase', reason:'grow',
         duties:'Поиск и ведение корпоративных клиентов, переговоры, заключение договоров.', reqs:'Опыт B2B-продаж, своя клиентская база приветствуется.',
         experience:'От 2 лет', skills:'Холодные звонки, переговоры, CRM', personal:'Настойчивость', salary:'300 000 ₸', bonus:'', start:day(30)}),
-      sound: base({title:'Звукорежиссёр', dept:'Продакшн', project:'Project X', manager:'dan', duties:'Запись и сведение звука на съёмках.', reqs:'', experience:'', skills:'', personal:'', salary:'', bonus:'', start:''}),
+      sound: base({title:'Звукорежиссёр', dept:'Продакшн', project:'Новогодняя кампания', manager:'dan', duties:'Запись и сведение звука на съёмках.', reqs:'', experience:'', skills:'', personal:'', salary:'', bonus:'', start:''}),
       designer: base({title:'Дизайнер', dept:'Маркетинг', project:'Сайт', manager:'mad', reason:'new',
         duties:'Макеты страниц сайта и баннеров, поддержка дизайн-системы.', reqs:'Портфолио веб-проектов, Figma.', experience:'От 3 лет',
         skills:'Figma, дизайн-системы, адаптивная вёрстка макетов', personal:'Внимание к деталям', salary:'500 000 ₸', bonus:'', format:'Гибрид', start:day(30)}),
       front: base({title:'Frontend-разработчик', dept:'Разработка', project:'Мобильное приложение', manager:'erl', reason:'grow',
         duties:'Разработка веб-версии приложения на React, работа с API.', reqs:'React, TypeScript, опыт с REST.', experience:'От 3 лет',
         skills:'React, TypeScript, тестирование', personal:'Самостоятельность', salary:'900 000 ₸', bonus:'Годовой бонус', format:'Гибрид', start:day(35)}),
-      motion: base({title:'Моушн-дизайнер', dept:'Продакшн', project:'Project X', manager:'dan', reason:'new',
+      motion: base({title:'Моушн-дизайнер', dept:'Продакшн', project:'Новогодняя кампания', manager:'dan', reason:'new',
         duties:'Анимация графики для роликов, титры, упаковка.', reqs:'Портфолио с моушн-работами.', experience:'От 2 лет',
         skills:'After Effects, Cinema 4D', personal:'Креативность', salary:'550 000 ₸', bonus:'', priority:'high', start:day(10)}),
-      operator: base({title:'Оператор-постановщик', seats:2, dept:'Продакшн', project:'Project X', manager:'dan', reason:'grow',
+      operator: base({title:'Оператор-постановщик', seats:2, dept:'Продакшн', project:'Новогодняя кампания', manager:'dan', reason:'grow',
         duties:'Съёмка рекламных роликов, работа со светом и камерой.', reqs:'Портфолио, опыт работы с кинокамерами.', experience:'От 3 лет',
         skills:'Blackmagic, RED, свет', personal:'Выносливость', salary:'600 000 ₸', bonus:'', schedule:'Проектный график', start:day(7)}),
       copy: base({title:'Копирайтер', dept:'Маркетинг', project:'Осенняя кампания', manager:'mad', reason:'new',
         duties:'Тексты для рекламы, сайта и соцсетей.', reqs:'Портфолио текстов.', experience:'От 1 года', skills:'Редактура, сторителлинг',
         personal:'Грамотность', salary:'320 000 ₸', bonus:'', format:'Гибрид', start:day(2)}),
-      producer: base({title:'Продюсер', dept:'Продакшн', project:'Project X', manager:'dan', reason:'replace',
+      producer: base({title:'Продюсер', dept:'Продакшн', project:'Новогодняя кампания', manager:'dan', reason:'replace',
         duties:'Ведение проектов от брифа до сдачи, бюджеты, команда на площадке.', reqs:'Опыт продюсирования рекламы.', experience:'От 3 лет',
         skills:'Сметы, тайминг, переговоры', personal:'Ответственность', salary:'700 000 ₸', bonus:'Процент от проекта', start:day(-3)}),
       analyst: base({title:'Аналитик данных', dept:'Разработка', project:'Внутренние сервисы', manager:'erl', reason:'new',
@@ -428,7 +428,7 @@ const Model = (function(){
       office: base({title:'Офис-менеджер', dept:'Администрация', project:'Офис', manager:'gul', reason:'replace',
         duties:'Ресепшн, закупки, порядок в офисе.', reqs:'Опыт офис-менеджером.', experience:'От 1 года', skills:'1С на базовом уровне', personal:'Доброжелательность',
         salary:'280 000 ₸', bonus:'', start:day(-14)}),
-      video: base({title:'Видеограф', dept:'Продакшн', project:'Project X', manager:'dan', reason:'grow',
+      video: base({title:'Видеограф', dept:'Продакшн', project:'Новогодняя кампания', manager:'dan', reason:'grow',
         duties:'Съёмка бэкстейджа и коротких видео.', reqs:'Портфолио.', experience:'От 1 года', skills:'Sony, монтаж на телефоне', personal:'', salary:'380 000 ₸', bonus:'', start:day(-20)}),
       assist: base({title:'Ассистент руководителя', dept:'Продажи', project:'Корпоративные клиенты', manager:'ase', reason:'new',
         duties:'Календарь, встречи, документы.', reqs:'', experience:'От 1 года', skills:'', personal:'', salary:'260 000 ₸', bonus:'', start:day(10)}),

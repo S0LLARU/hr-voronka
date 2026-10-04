@@ -9,6 +9,8 @@ const go = h => { location.hash = h; };
 function Facts({rows}){
   return html`<dl className="kv">${rows.filter(x => x[1]).map(([k, val]) => html`<${Fragment} key=${k}><dt>${k}</dt><dd>${val}</dd><//>`)}</dl>`;
 }
+const RETURN_NOTE = 'Заявка вернётся руководителю. После доработки она снова придёт в HR и пройдёт согласование заново.';
+const REJECT_NOTE = 'Заявка закроется, руководитель увидит причину. Отменить это нельзя: понадобится новая заявка.';
 const hrComment = r => { const l = r.log.filter(x => x.step === 'hr').pop(); return l && l.comment; };
 const finComment = r => { const l = r.log.filter(x => x.step === 'finance').pop(); return l ? 'Согласовано' + (l.comment ? ': ' + l.comment : '') : ''; };
 
@@ -70,8 +72,8 @@ function DecisionForm({r, h}){
     <div className="field">
       <div className="radios" role="radiogroup" aria-label="Решение по стажировке">
         <label><input type="radio" name=${'dec' + h.id} checked=${verdict === 'hire'} onChange=${() => setVerdict('hire')}/>Нанимаем <small>начнётся оформление</small></label>
-        <label><input type="radio" name=${'dec' + h.id} checked=${verdict === 'drop'} onChange=${() => setVerdict('drop')}/>Не продолжаем</label>
-        <label><input type="radio" name=${'dec' + h.id} checked=${verdict === 'extend'} onChange=${() => setVerdict('extend')}/>Продлить стажировку</label>
+        <label><input type="radio" name=${'dec' + h.id} checked=${verdict === 'drop'} onChange=${() => setVerdict('drop')}/>Не продолжаем <small>отказ после стажировки, место снова в подборе</small></label>
+        <label><input type="radio" name=${'dec' + h.id} checked=${verdict === 'extend'} onChange=${() => setVerdict('extend')}/>Продлить стажировку <small>решение перенесётся на новую дату</small></label>
       </div>
       ${err.verdict && html`<span className="err">${err.verdict}</span>`}
     </div>
@@ -88,7 +90,7 @@ function MyTurn({r, t, setTab, now}){
   const d = (type, p) => Store.dispatch(type, Object.assign({id:r.id}, p));
   const late = Model.late(t, now);
   const waited = t.since ? 'Ждёт ' + Model.ago(t.since, now) : t.due ? (t.dueKind === 'выход' ? 'Выход ' : 'Срок — ') + Model.fmtDate(t.due) : '';
-  const head = html`<div className="now-t">${t.mine}${t.hn ? ': ' + t.hn : ''}</div>${waited && html`<div className=${'now-m' + (late ? ' late' : '')}>${waited}${late ? ', срок прошёл' : ''}</div>`}`;
+  const head = html`<div className="now-t">${t.mine}${t.hn ? ': ' + t.hn : ''}</div>${waited && html`<div className=${'now-m' + (late ? ' late' : '')}>${late && html`<${Icon} n="late" s=${14} label="Срок прошёл"/> `}${waited}</div>`}`;
   const box = body => html`<div className="now is-mine">${head}${body}</div>`;
   const h = t.h && r.hires.find(x => x.id === t.h);
 
@@ -100,20 +102,20 @@ function MyTurn({r, t, setTab, now}){
       <div className="row"><${Btn} kind="primary" onClick=${() => go('#/r/' + r.id + '/edit')}>Доработать заявку<//></div>`);
     case 'hr': return box(html`<${Decide} actions=${[
       {label:'Принять и передать в Finance', kind:'primary', run:c => d('hrAccept', {comment:c})},
-      {label:'Вернуть на доработку', ask:true, need:true, whom:'руководитель', run:c => d('hrReturn', {comment:c})}]}/>`);
+      {label:'Вернуть на доработку', ask:true, need:true, whom:'руководитель', note:RETURN_NOTE, run:c => d('hrReturn', {comment:c})}]}/>`);
     case 'finance': return box(html`
-      <${Facts} rows=${[['Зарплата', r.salary], ['Бонусы / KPI', r.bonus || 'Нет'], ['Количество', r.seats > 1 ? r.seats + ' человека' : ''],
+      <${Facts} rows=${[['Зарплата', r.salary], ['Бонусы / KPI', r.bonus || 'Не указаны'], ['Количество', r.seats > 1 ? r.seats + ' человека' : ''],
         ['Дата выхода', Model.fmtDate(r.start, true)], ['Причина', Model.REASONS[r.reason] + (r.reasonOther ? ': ' + r.reasonOther : '')], ['Комментарий HR', hrComment(r)]]}/>
       <${Decide} actions=${[
-        {label:'Согласовать', kind:'primary', run:c => d('finApprove', {comment:c})},
-        {label:'Вернуть на доработку', ask:true, need:true, whom:'руководитель', run:c => d('finReturn', {comment:c})},
-        {label:'Отклонить', kind:'danger', ask:true, need:true, whom:'руководитель', confirm:'Отклонить заявку', run:c => d('finReject', {comment:c})}]}/>`);
+        {label:'Согласовать и передать CEO', kind:'primary', run:c => d('finApprove', {comment:c})},
+        {label:'Вернуть на доработку', ask:true, need:true, whom:'руководитель', note:RETURN_NOTE, run:c => d('finReturn', {comment:c})},
+        {label:'Отклонить', kind:'danger', ask:true, need:true, whom:'руководитель', confirm:'Отклонить заявку', note:REJECT_NOTE, run:c => d('finReject', {comment:c})}]}/>`);
     case 'ceo': return box(html`
       <${Facts} rows=${[['Руководитель', name(r.manager)], ['Причина', Model.REASONS[r.reason]], ['Зарплата', r.salary + (r.seats > 1 ? ' × ' + r.seats : '')],
         ['Дата выхода', Model.fmtDate(r.start, true)], ['Комментарий HR', hrComment(r)], ['Finance', finComment(r)]]}/>
       <${Decide} actions=${[
         {label:'Одобрить поиск', kind:'primary', run:c => d('ceoApprove', {comment:c})},
-        {label:'Отклонить', kind:'danger', ask:true, need:true, whom:'руководитель', confirm:'Отклонить заявку', run:c => d('ceoReject', {comment:c})}]}/>`);
+        {label:'Отклонить', kind:'danger', ask:true, need:true, whom:'руководитель', confirm:'Отклонить заявку', note:REJECT_NOTE, run:c => d('ceoReject', {comment:c})}]}/>`);
     case 'assign': return box(html`<${AssignForm} r=${r}/>`);
     case 'assigned': return box(html`
       <${Facts} rows=${[['Срок закрытия', Model.fmtDate(r.deadline, true)], ['Приоритет', Model.PRIORITY[r.priority]]]}/>
@@ -151,7 +153,7 @@ function Waiting({t, now}){
   if(t.since && !t.ongoing) meta.push('ждёт ' + Model.ago(t.since, now));
   if(t.due) meta.push((t.dueKind === 'выход' ? 'выход ' : 'срок ') + Model.fmtDate(t.due));
   if(t.count) meta.push(t.count[0] + ' из ' + t.count[1]);
-  return html`<div className="now"><div className="now-t">${t.full || t.text}${t.hn ? ': ' + t.hn : ''}</div><div className=${'now-m' + (late ? ' late' : '')}>${meta.join(', ')}${late ? ' — срок прошёл' : ''}</div></div>`;
+  return html`<div className="now"><div className="now-t">${t.full || t.text}${t.hn ? ': ' + t.hn : ''}</div><div className=${'now-m' + (late ? ' late' : '')}>${late && html`<${Icon} n="late" s=${14} label="Срок прошёл"/> `}${meta.join(', ')}</div></div>`;
 }
 
 /* ---------- путь заявки ---------- */
@@ -269,7 +271,7 @@ function PathTab({r, v, now, focus}){
     <ol className="path">${steps}</ol>
     ${hireSteps}
     ${!stopped && html`<ol className="path" style=${{marginTop:hireSteps.length ? 4 : 0}}>
-      <${Step} state=${closed ? 'done' : 'next'} title="Вакансия закрыта" meta=${closed ? Model.fmtDate(r.closedAt, true) + ', за ' + Model.days(r.created, r.closedAt) + ' ' + Model.plural(Model.days(r.created, r.closedAt), 'день','дня','дней') : r.seats > 1 ? 'Когда все ' + r.seats + ' человека учтены в ФОТ' : 'Когда сотрудник учтён в ФОТ'}/>
+      <${Step} state=${closed ? 'done' : 'next'} title="Заявка закрыта" meta=${closed ? Model.fmtDate(r.closedAt, true) + ', за ' + Model.days(r.created, r.closedAt) + ' ' + Model.plural(Model.days(r.created, r.closedAt), 'день','дня','дней') : r.seats > 1 ? 'Когда все ' + r.seats + ' человека учтены в ФОТ' : 'Когда сотрудник учтён в ФОТ'}/>
     </ol>`}
   </div>`;
 }
@@ -283,7 +285,7 @@ function CandidatesTab({r, v, now}){
   const row = c => {
     const waitMgr = c.stage === 'mgr', mine = waitMgr && r.manager === v, late = waitMgr && c.stageAt + Model.SLA.feedback < now;
     const s = c.stage === 'approved' ? (p.editCandidates ? 'Отправить оффер' : 'Одобрен') : c.stage === 'offer' ? 'Оффер ' + Model.fmtDate(c.offer.at)
-      : mine ? 'Ждёт вашего ответа' : Model.ago(c.stageAt, now);
+      : Model.ago(c.stageAt, now);
     return html`<button key=${c.id} className="cand" onClick=${() => go('#/r/' + r.id + '/c/' + c.id)}>
       <span className="cand-n">${c.name}</span><span className="cand-p">${c.position || c.source}</span>
       <span className=${'cand-s' + (mine || (c.stage === 'approved' && p.editCandidates) ? ' is-mine' : '') + (late ? ' late' : '')}>${late && !mine ? html`<${Icon} n="late" s=${13} label="Срок ответа прошёл"/> ` : ''}${s}</span>
@@ -296,7 +298,7 @@ function CandidatesTab({r, v, now}){
         <span className="cand-n">${c.name}</span><span className="cand-p">${c.position}</span>
         <span className="cand-s">${h ? {prep:'выход ' + Model.fmtDate(h.start), intern:'стажировка', docs:'оформление', fin:'оформлен', fot:'оформлен', done:'в штате'}[h.stage] : ''}</span></button>`; })}</div>`}
     ${Model.STAGES.slice().reverse().map(s => { const list = live.filter(c => Model.stageGroup(c.stage) === s.id); return list.length ? html`<div className="group" key=${s.id}>
-      <div className="group-h">${s.name} <span className="num">${list.length}</span></div>${list.map(row)}</div>` : null; })}
+      <div className="group-h">${s.id === 'mgr' && r.manager === v ? 'Ждут вашего ответа' : s.name} <span className="num">${list.length}</span></div>${list.map(row)}</div>` : null; })}
     ${!r.candidates.length && html`<p className="muted">Кандидатов пока нет</p>`}
     ${rej.length > 0 && html`<div className="group">
       <button className="group-t" aria-expanded=${showRej} onClick=${() => setShowRej(!showRej)}>Отказы <span className="muted num">${rej.length}</span>
@@ -546,8 +548,8 @@ function RequestPanel({r, view, cid, onClose}){
         <div><dt>Руководитель</dt><dd>${name(r.manager)}</dd></div>
         <div><dt>Рекрутер</dt><dd>${r.recruiter ? name(r.recruiter) : html`<span className="muted">не назначен</span>`}</dd></div>
         <div><dt>Создана</dt><dd className="num">${Model.fmtDate(r.created, true)}</dd></div>
-        <div><dt>${r.deadline ? 'Срок закрытия' : 'Желаемый выход'}</dt><dd className=${'num' + (r.deadline && r.deadline < now && Model.phase(r) !== 'closed' ? ' late' : '')}>${Model.fmtDate(r.deadline || r.start, true) || '—'}</dd></div>
-        ${p.salary && html`<div><dt>Зарплата</dt><dd>${r.salary || '—'}</dd></div>`}
+        <div><dt>Желаемый выход</dt><dd className="num">${Model.fmtDate(r.start, true) || '—'}</dd></div>
+        ${r.deadline && html`<div><dt>Срок закрытия</dt><dd className=${'num' + (r.deadline < now && Model.phase(r) !== 'closed' ? ' late' : '')}>${r.deadline < now && Model.phase(r) !== 'closed' ? html`<${Icon} n="late" s=${14} label="Срок прошёл"/> ` : ''}${Model.fmtDate(r.deadline, true)}</dd></div>`}
       </dl>
       ${cancel && html`<${CancelForm} r=${r} onDone=${() => setCancel(false)}/>`}
       ${!cancel && mine.map((t, i) => html`<${MyTurn} key=${'m' + i + (t.h || '') + r.status} r=${r} t=${t} now=${now} setTab=${setTab}/>`)}

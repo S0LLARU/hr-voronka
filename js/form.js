@@ -78,7 +78,7 @@ function RequestForm({r, onClose}){
           ${f.reason === 'other' && html`<${Field} label="Какая причина" error=${err.reasonOther}>${inp('reasonOther')}<//>`}
         </section>
 
-        <section className="form-sec"><h3>Должность</h3>
+        <section className="form-sec"><h3>Информация о должности</h3>
           <${Field} label="Основные обязанности" error=${err.duties}>${area('duties', 4)}<//>
           <${Field} label="Требования" error=${err.reqs}>${area('reqs')}<//>
           <div className="grid2">

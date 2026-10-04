@@ -113,7 +113,8 @@ function Decide({actions}){
     a.run(text.trim()); setOpen(null); setText(''); setErr('');
   };
   if(a) return html`<div ref=${box} className="decide">
-    <${Field} label=${a.need ? 'Комментарий' : 'Комментарий'} optional=${!a.need} error=${err}>
+    ${a.note && html`<p className="now-m" style=${{margin:'10px 0 10px'}}>${a.note}</p>`}
+    <${Field} label="Комментарий" optional=${!a.need} error=${err}>
       <textarea ref=${area} className="inp" rows="3" value=${text} onInput=${e => { setText(e.target.value); setErr(''); }}
         onKeyDown=${e => { if(e.key === 'Escape'){ e.stopPropagation(); setOpen(null); } }}/>
     <//>
