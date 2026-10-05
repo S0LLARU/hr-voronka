@@ -5,7 +5,8 @@
 ## Как работаем
 
 - Пиши по-русски, короткими ясными предложениями. Пользователь пишет разговорно и голосом. Перед крупным решением он хочет услышать план и варианты, потом выбирает.
-- Дизайн — по стандарту команды: репозиторий `S0LLARU/standart_for_product_design`. Порядок работы — скилл `design-make`, проверка — скилл `design-check` отдельным агентом по скриншотам. Обязательно смотри `checklists/AI_TELLS.md` (признаки ИИ-дизайна) и `guides/SCREENS.md` (движение, телефон, проверка глазами).
+- Дизайн — по стандарту команды. Его копия лежит в `standard/`: требования `standard/STANDARD.md`, принципы Рамса, Айва и HIG в `standard/principles/`, признаки ИИ-дизайна `standard/checklists/AI_TELLS.md`, руководство «Как мы делаем экраны» `standard/guides/SCREENS.md`. Копию только читают, правят стандарт в `S0LLARU/standart_for_product_design` (см. `standard/SOURCE.md`).
+- Скиллы в `.claude/skills/`: `design-make` — как проектировать экран, `design-check` — ИИ-проверка по скриншотам (лучше отдельным агентом). Задание для проверки: `python3 standard/scripts/build_checklist.py --ai-prompt quick` (или `design`, `release`, `audit`).
 - Стиль — **не macOS**, своё спокойное рабочее оформление:
   - шрифт Golos Text (кириллица, ровные цифры);
   - нейтральная серая основа;
