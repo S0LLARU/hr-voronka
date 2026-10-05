@@ -145,13 +145,6 @@ function Decide({actions}){
   </div>`;
 }
 
-/* крестик окна: стоит в заголовке, когда у окна нет полосы с крошками */
-const ModalClose = React.createContext(null);
-function CloseBtn(){
-  const close = React.useContext(ModalClose);
-  return close ? html`<button className="icon-btn m-x" aria-label="Закрыть" onClick=${close}><${Icon} n="x" s=${18}/></button>` : null;
-}
-
 /* дата для <input type=date> и обратно */
 const toInput = t => { if(!t) return ''; const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
 const fromInput = s => { if(!s) return null; const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d, 10).getTime(); };

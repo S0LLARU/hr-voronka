@@ -567,7 +567,6 @@ function RequestPage({r, view, cid}){
               <button className="menu-item" role="menuitem" style=${{color:'var(--red)'}} onClick=${() => { more.setOpen(false); setCancel(true); }}>Отменить заявку</button>
             </div>`}
           </div>`}
-          <${CloseBtn}/>
         </div>
         ${cancel && html`<${CancelForm} r=${r} onDone=${() => setCancel(false)}/>`}
         ${!cancel && mine.map((t, i) => html`<${MyTurn} key=${'m' + i + (t.h || '') + r.status} r=${r} t=${t} now=${now} setTab=${setTab} tab=${tab}/>`)}
