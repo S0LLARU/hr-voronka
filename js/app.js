@@ -71,20 +71,14 @@ function Crumbs({items}){
 }
 
 function BoardPage({S, v, now, focusId}){
-  const [q, setQ] = useState(''), [onlyMine, setOnlyMine] = useState(false);
+  const [q, setQ] = useState('');
   const visible = S.requests.filter(r => Model.visible(r, v));
   const ql = q.trim().toLowerCase();
   const match = r => !ql || [r.title, r.dept, r.project, name(r.manager), name(r.recruiter), ...r.candidates.map(c => c.name)].some(s => s && s.toLowerCase().includes(ql));
-  const mineCount = visible.filter(r => isMine(r, v)).length;
-  const list = visible.filter(r => match(r) && (!onlyMine || isMine(r, v)));
-  useEffect(() => { if(onlyMine && !mineCount) setOnlyMine(false); }, [v, mineCount]);
+  const list = visible.filter(match);
   return html`<div className="board-page">
     <h1 className="sr">Заявки на подбор</h1>
     <div className="tools">
-      <div className="pills" role="group" aria-label="Какие заявки показать">
-        <button aria-pressed=${!onlyMine} onClick=${() => setOnlyMine(false)}>Все <span className="n num">${visible.length}</span></button>
-        <button aria-pressed=${onlyMine} disabled=${!mineCount} onClick=${() => setOnlyMine(true)}>Мой ход <span className="n num">${mineCount}</span></button>
-      </div>
       <label className="search"><span className="sr">Поиск заявок</span><${Icon} n="search"/>
         <input type="search" value=${q} onInput=${e => setQ(e.target.value)} placeholder="Должность, проект, человек"/></label>
     </div>
@@ -109,7 +103,7 @@ function App(){
   const req = route.id ? S.requests.find(r => r.id === route.id && Model.visible(r, v)) : null;
   const open = !!(route.form === 'new' || req);
   const [shown, setShown] = useState(open ? route : null);
-  const [slot, setSlot] = useState(null), [strip, setStrip] = useState(null);
+  const [slot, setSlot] = useState(null), [strip, setStrip] = useState(null), [foot, setFoot] = useState(null);
   const lastId = useRef(null), modal = useRef(null), scrim = useRef(null), main = useRef(null), body = useRef(null), wasShown = useRef(false);
   useEffect(() => {
     setDrawer(false);
@@ -156,7 +150,7 @@ function App(){
     if(shown.form === 'new' || fr) content = html`<${RequestForm} key=${key} r=${fr} onClose=${id => { Panel.leave = f => f(); go(id ? '#/r/' + id : '#/'); }}/>`;
   } else if(sr){
     const c = shown.cid && sr.candidates.find(x => x.id === shown.cid);
-    label = shown.view === 'cand' && c ? c.name : sr.title; wide = shown.view === 'main';
+    label = shown.view === 'cand' && c ? c.name : sr.title; wide = shown.view !== 'add';
     content = html`<${RequestPage} key=${sr.id} r=${sr} view=${shown.view} cid=${shown.cid}/>`;
   }
   const canCreate = me.role === 'manager' || me.role === 'hrd';
@@ -183,7 +177,8 @@ function App(){
           <button className="icon-btn m-x" aria-label="Закрыть" onClick=${close}><${Icon} n="x" s=${18}/></button>
         </div>
         <div className="m-strip" ref=${setStrip}/>
-        <div className="m-body" ref=${body}><${ModalSlot.Provider} value=${slot && {head:slot, strip}}>${content}<//></div>
+        <div className="m-body" ref=${body}><${ModalSlot.Provider} value=${slot && {head:slot, strip, foot}}>${content}<//></div>
+        <div className="m-foot" ref=${setFoot}/>
       </div>
       </div>
     <//>`}

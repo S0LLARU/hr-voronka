@@ -120,7 +120,8 @@ a{color:var(--accent)}
 .card{display:block;width:100%;padding:12px 13px 11px;border:1px solid var(--line);border-radius:var(--r-card);background:var(--bg);text-align:left;
   transition:border-color .15s ease,box-shadow .15s ease}
 .card:hover{border-color:var(--line-2);box-shadow:0 1px 2px rgba(17,17,19,.04),0 3px 10px rgba(17,17,19,.05)}
-.card.is-mine{border-color:var(--accent-line)}
+.card.is-mine{border-color:var(--accent-line);background:var(--accent-soft)}
+.card.is-mine .c-title{color:var(--accent)}
 .card[aria-current=true],.card.is-mine[aria-current=true]{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
 .c-top{display:flex;align-items:baseline;gap:6px}
 .c-title{font-weight:600;line-height:1.3;overflow-wrap:anywhere}
@@ -130,15 +131,7 @@ a{color:var(--accent)}
 .c-meta{display:flex;flex-wrap:wrap;justify-content:space-between;gap:0 8px;margin-top:6px;font-size:13.5px;color:var(--ink-2)}
 .c-meta > span{white-space:nowrap}
 .c-meta > span:only-child{white-space:normal}
-.c-steps{display:flex;gap:3px;margin-top:10px}
-.c-steps i{flex:1;height:3px;border-radius:2px;background:var(--line)}
-.c-steps i.on{background:var(--ink-2)}
-.c-steps i.cur{background:#A6A6AD}
-.c-turn{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:8px;font-size:13.5px;color:var(--ink-2)}
-.c-turn .t{min-width:0}
-.c-turn.is-mine .t{color:var(--accent);font-weight:600}
-.c-time{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;color:var(--ink-3);font-variant-numeric:tabular-nums}
-.is-late .c-time,.late,.now-m.late,.cand-s.late,dd.late{color:var(--red)}
+.late,.now-m.late,.cand-s.late,dd.late{color:var(--red)}
 .card.is-closed{padding:9px 12px}
 .card.is-closed .c-title{font-weight:500}
 
@@ -231,6 +224,8 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 .radios label{display:flex;gap:8px;align-items:center}
 .radios input{accent-color:var(--ink);width:16px;height:16px;margin:0}
 .radios small{color:var(--ink-3)}
+.radios.is-row{flex-direction:row;flex-wrap:wrap;gap:6px 20px}
+.guard-row span{margin-right:8px;font-weight:500}
 
 /* предупреждение о несохранённом */
 .guard{position:sticky;bottom:0;z-index:5;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 24px;background:var(--red-soft);border-top:1px solid #F1D3CF}
@@ -280,11 +275,11 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 .scrim.is-modal{background:rgba(17,17,19,.32)}
 
 /* ---------- модальное окно: заявка, кандидат, форма ---------- */
-.modal-wrap{position:fixed;inset:0;z-index:41;display:flex;justify-content:center;align-items:flex-start;padding:min(6vh,56px) 28px 28px;pointer-events:none}
-.modal{position:relative;display:flex;flex-direction:column;width:min(920px,100%);max-height:100%;pointer-events:auto;
+.modal-wrap{position:fixed;inset:0;z-index:41;display:flex;justify-content:center;align-items:flex-start;padding:min(4vh,36px) 28px 24px;pointer-events:none}
+.modal{position:relative;display:flex;flex-direction:column;overflow:hidden;width:min(1200px,100%);max-height:100%;pointer-events:auto;
   border-radius:16px;background:var(--bg);box-shadow:0 0 0 1px rgba(17,17,19,.06),0 24px 64px rgba(17,17,19,.22)}
 .modal.is-narrow{width:min(800px,100%)}
-.m-head{display:flex;align-items:center;gap:10px;min-height:60px;padding:10px 14px 10px 20px;border-bottom:1px solid var(--line);flex:none}
+.m-head{display:flex;align-items:center;gap:10px;min-height:60px;padding:12px 14px 6px 22px;flex:none}
 .m-slot{display:contents}
 .m-t{flex:1;min-width:0}
 .m-title{margin:0;font-size:18px;line-height:1.25;font-weight:600;letter-spacing:-.016em;outline:none;overflow-wrap:anywhere}
@@ -296,10 +291,15 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 .m-more{position:relative}
 .m-head .icon-btn{flex:none}
 .m-head .m-x{margin-left:-4px}
-.m-body{flex:1 1 auto;min-height:0;overflow-y:auto;border-radius:0 0 16px 16px}
+.m-body{flex:1 1 auto;min-height:0;overflow-y:auto;border-top:1px solid var(--line)}
+.m-foot{flex:none;padding:12px 22px;border-top:1px solid var(--line);background:var(--bg)}
+.m-foot:empty{display:none}
+.m-foot .decide{max-width:760px}
+.btn-cancel{margin-left:auto;color:var(--red)}
+.btn-cancel:hover{background:var(--red-soft);color:var(--red)}
 
 /* полоса пути под шапкой: не прокручивается, видна всегда */
-.m-strip{flex:none;padding:10px 20px 11px;border-bottom:1px solid var(--line)}
+.m-strip{flex:none;padding:4px 22px 14px}
 .m-strip:empty{display:none}
 .rp{display:flex;list-style:none;margin:0;padding:0;overflow-x:auto;scrollbar-width:none}
 .rp::-webkit-scrollbar{display:none}
@@ -328,7 +328,58 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 .rp-turn svg{vertical-align:-2px;margin-right:4px}
 
 /* содержимое окна: одна колонка — решение, затем главное для этого шага */
-.mpage{display:flex;flex-direction:column;gap:16px;padding:16px 20px 22px}
+.mpage{display:flex;flex-direction:column;gap:16px;padding:18px 22px 22px}
+
+/* окно: слева дело, справа кто подал и история */
+.mgrid{display:grid;grid-template-columns:minmax(0,1fr) 320px;min-height:100%}
+.mmain{display:flex;flex-direction:column;gap:22px;padding:20px 22px 24px;min-width:0}
+.mmain > .sec{margin:0}
+.mside{display:flex;flex-direction:column;gap:22px;padding:20px 22px 24px;background:var(--side);min-width:0}
+.side-h{margin:0;font-size:15px;font-weight:600}
+.info{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px 14px;margin:0}
+.info div{display:contents}
+.info dt{font-size:13.5px;color:var(--ink-3);white-space:nowrap}
+.info dd{margin:0;font-size:14px;text-align:right;overflow-wrap:anywhere}
+.info dd svg{vertical-align:-2px}
+.brief{display:grid;grid-template-columns:1fr 1fr;gap:0 32px}
+.brief-c{display:flex;flex-direction:column;gap:20px;min-width:0}
+.brief-c > .sec{margin:0}
+.brief .kv{grid-template-columns:128px minmax(0,1fr);gap:5px 12px}
+.note{padding:12px 14px;border-radius:var(--r-card);background:var(--lane)}
+.note-t{font-weight:600}
+.note-q{margin:6px 0 0;white-space:pre-wrap}
+.note-m{margin-top:4px;font-size:13.5px;color:var(--ink-3)}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 16px}
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 16px}
+.grid-dc{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:0 16px}
+/* чек-лист: колонки по исполнителю, свои пункты чёрные, чужие приглушены */
+.hire{display:flex;flex-direction:column;gap:22px}
+.hire > .sec-h{margin:0}
+.cl-h{display:flex;gap:8px;align-items:baseline;margin:0 0 10px;font-size:15.5px;font-weight:600}
+.cl-h .num{color:var(--ink-3);font-weight:400;font-size:14px}
+.cl-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px 28px}
+.cl-who{margin-bottom:4px;font-size:13px;color:var(--ink-3)}
+.ck{position:relative;display:flex;gap:10px;align-items:flex-start;padding:5px 0;line-height:1.35;cursor:pointer}
+.ck input{position:absolute;opacity:0;width:18px;height:18px;margin:0}
+.ck-b{flex:none;display:grid;place-items:center;width:18px;height:18px;border-radius:5px;border:1.5px solid var(--line-2);background:var(--bg);color:transparent;transition:background .12s,border-color .12s}
+.ck:hover .ck-b{border-color:var(--ink-3)}
+.ck input:checked + .ck-b{background:var(--ink);border-color:var(--ink);color:#fff}
+.ck input:focus-visible + .ck-b{box-shadow:var(--focus)}
+.ck.is-done .ck-t{color:var(--ink-3)}
+.ck.is-off{cursor:default}
+.ck.is-off .ck-b{background:var(--lane);border-color:var(--line)}
+.ck.is-off input:checked + .ck-b{background:#B9B9BF;border-color:#B9B9BF}
+.ck.is-off:not(.is-done) .ck-t{color:var(--ink-2)}
+/* кандидаты: строка — имя, где работает, этап */
+.crows{display:flex;flex-direction:column;margin:0 -10px}
+.crow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:16px;align-items:baseline;justify-items:start;padding:8px 10px;border:0;border-radius:var(--r-ctl);background:none;text-align:left}
+.crow:hover{background:var(--hover)}
+.crow-n{font-weight:500}
+.crow-p{color:var(--ink-3);font-size:14px}
+.crow-s{font-size:14px;color:var(--ink-2);white-space:nowrap}
+.crow-s.is-mine{color:var(--accent);font-weight:600}
+.crows.is-rej .crow-n{color:var(--ink-2);font-weight:400}
+.rej-t{margin-top:10px}
 .mpage > .now,.mpage .act > .now{margin:0}
 .mpage .tab-body{margin-top:14px}
 .act{display:flex;flex-direction:column;gap:12px;margin-top:12px}
@@ -381,11 +432,18 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
   .board{padding:0 16px 16px;grid-template-columns:repeat(5,82vw);scroll-snap-type:x mandatory;scroll-padding:0 16px}
   .col{scroll-snap-align:start}
   .modal-wrap{padding:0}
-  .m-strip{padding:10px 16px}
+  .m-strip{padding:4px 16px 12px}
+  .mgrid{grid-template-columns:minmax(0,1fr)}
+  .mmain,.mside{padding:16px}
+  .m-foot{padding:10px 16px}
+  .brief,.grid3,.grid4,.grid-dc{grid-template-columns:minmax(0,1fr)}
+  .crow{grid-template-columns:minmax(0,1fr) auto;gap:2px 12px}
+  .crow-p{grid-row:2}
+  .btn-cancel{margin-left:0}
   .mpage{padding:14px 16px 22px;gap:14px}
   .modal,.modal.is-narrow{width:100%;height:100%;border-radius:0}
   .m-body{border-radius:0}
-  .m-head{flex-wrap:wrap;min-height:0;gap:8px 8px;padding:12px 8px 12px 16px}
+  .m-head{min-height:0;gap:8px;padding:12px 8px 6px 16px}
   .m-t{flex-basis:calc(100% - 96px)}
   .m-title{font-size:18px}
   .m-head .badge{order:5;margin-top:2px}

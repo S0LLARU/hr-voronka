@@ -51,78 +51,78 @@ function RequestForm({r, onClose}){
   const area = (k, rows) => html`<textarea className="inp" data-k=${k} rows=${rows || 3} value=${f[k]} onInput=${set(k)}/>`;
   const returned = r && r.status === 'returned';
 
-  return html`<${Fragment}>
-    <div className="page is-narrow" ref=${box}>
-      <${ModalHead} title=${r ? (r.status === 'draft' ? 'Черновик заявки' : 'Доработка заявки') : 'Новая заявка на подбор'} sub=${r && html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`} strip=${html`<${Strip} rows=${[{steps:approveSteps(r || BLANK)}]}/>`}/>
-      <section className="box">
-        ${returned && html`<div className="now is-mine"><div className="now-t">Что просят исправить</div><blockquote className="now-q">${r.returned.comment}</blockquote>
-          <div className="now-m">${name(r.returned.by)}, ${Model.fmtDateTime(r.returned.at)}</div></div>`}
-        <div className="form-body">
-        <section className="form-sec"><h3>Общая информация</h3>
-          <${Field} label="Должность" error=${err.title}>${inp('title', {autoComplete:'off'})}<//>
-          <div className="grid2">
-            <${Field} label="Отдел" error=${err.dept}><select className="inp" data-k="dept" value=${f.dept} onChange=${set('dept')}><option value="">Выберите</option>${Model.DEPTS.map(d => html`<option key=${d}>${d}</option>`)}</select><//>
-            <${Field} label="Проект" error=${err.project}>${inp('project')}<//>
-            <${Field} label="Непосредственный руководитель" error=${err.manager}><select className="inp" data-k="manager" value=${f.manager} onChange=${set('manager')}><option value="">Выберите</option>${managers.map(([id, p]) => html`<option key=${id} value=${id}>${p.name}</option>`)}</select><//>
-            <${Field} label="Сколько человек" error=${err.seats}>${inp('seats', {type:'number', min:1, max:50, inputMode:'numeric'})}<//>
-          </div>
-          <div className="field">
-            <span className="l" id="reason-l">Причина открытия позиции</span>
-            <div className="radios" role="radiogroup" aria-labelledby="reason-l">
-              ${Object.entries(Model.REASONS).map(([k, t], i) => html`<label key=${k}><input type="radio" name="reason" data-k=${i === 0 ? 'reason' : undefined} checked=${f.reason === k} onChange=${() => set('reason')(k)}/>${t}</label>`)}
-            </div>
-            ${err.reason && html`<span className="err">${err.reason}</span>`}
-          </div>
-          ${f.reason === 'other' && html`<${Field} label="Какая причина" error=${err.reasonOther}>${inp('reasonOther')}<//>`}
-        </section>
-
-        <section className="form-sec"><h3>Информация о должности</h3>
-          <${Field} label="Основные обязанности" error=${err.duties}>${area('duties', 4)}<//>
-          <${Field} label="Требования" error=${err.reqs}>${area('reqs')}<//>
-          <div className="grid2">
-            <${Field} label="Необходимый опыт" error=${err.experience}>${inp('experience', {placeholder:'От 2 лет'})}<//>
-            <${Field} label="Образование" optional=${true}>${inp('education')}<//>
-          </div>
-          <${Field} label="Профессиональные навыки" optional=${true}>${inp('skills')}<//>
-          <${Field} label="Личные качества" optional=${true}>${inp('personal')}<//>
-          <${Field} label="Дополнительные требования" optional=${true}>${area('extra', 2)}<//>
-        </section>
-
-        <section className="form-sec"><h3>Условия</h3>
-          <div className="field"><span className="l">Формат работы</span><${Seg} label="Формат работы" value=${f.format} onChange=${set('format')} options=${Model.FORMATS.map(x => [x, x])}/></div>
-          <div className="grid2">
-            <${Field} label="Локация" error=${err.location}>${inp('location')}<//>
-            <${Field} label="График" error=${err.schedule}>${inp('schedule')}<//>
-            <${Field} label="Тип занятости"><select className="inp" value=${f.employment} onChange=${set('employment')}>${Model.EMPLOYMENT.map(x => html`<option key=${x}>${x}</option>`)}</select><//>
-            <${Field} label="Зарплата" error=${err.salary} hint="Оклад на руки или вилка">${inp('salary', {placeholder:'400 000 ₸'})}<//>
-            <${Field} label="Бонусы / KPI" optional=${true}>${inp('bonus')}<//>
-            <${Field} label="Испытательный срок" optional=${true}>${inp('probation')}<//>
-            <${Field} label="Желаемая дата выхода" error=${err.start}>${inp('start', {type:'date'})}<//>
-          </div>
-        </section>
-
-        <section className="form-sec"><h3>Дополнительно</h3>
-          <div className="field"><span className="l">Приоритет</span><${Seg} label="Приоритет" value=${f.priority} onChange=${set('priority')} options=${[['normal','Обычный'],['high','Срочно']]}/></div>
-          <${Field} label="Комментарий для HR" optional=${true}>${area('comment')}<//>
-          <div className="field">
-            <span className="l">Файлы <small>необязательно</small></span>
-            ${f.files.length > 0 && html`<ul className="files">${f.files.map((x, i) => html`<li key=${i}><${Icon} n="clip" s=${15}/>${x.name}
-              <button className="btn btn-ghost" style=${{height:28}} aria-label=${'Убрать ' + x.name} onClick=${() => set('files')(f.files.filter((_, j) => j !== i))}><${Icon} n="x" s=${14}/></button></li>`)}</ul>`}
-            <${Btn} onClick=${() => file.current.click()}><${Icon} n="clip" s=${15}/>Прикрепить ТЗ или материалы<//>
-            <input ref=${file} type="file" multiple hidden onChange=${e => { const fs = Array.from(e.target.files).map(x => ({name:x.name, size:x.size})); if(fs.length) set('files')(f.files.concat(fs)); e.target.value = ''; }}/>
-          </div>
-        </section>
+  return html`<div className="mpage" ref=${box}>
+    <${ModalHead} title=${r ? (r.status === 'draft' ? 'Черновик заявки' : 'Доработка заявки') : 'Новая заявка на подбор'} sub=${r && html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`} strip=${html`<${Strip} rows=${[{steps:approveSteps(r || BLANK)}]}/>`}/>
+    ${returned && html`<${Note} title="Что просят исправить" by=${r.returned.by} at=${r.returned.at} quote=${r.returned.comment}/>`}
+    <section className="form-sec"><h3>Общая информация</h3>
+      <div className="grid-dc">
+        <${Field} label="Должность" error=${err.title}>${inp('title', {autoComplete:'off'})}<//>
+        <${Field} label="Проект" error=${err.project}>${inp('project')}<//>
+      </div>
+      <div className="grid3">
+        <${Field} label="Отдел" error=${err.dept}><select className="inp" data-k="dept" value=${f.dept} onChange=${set('dept')}><option value="">Выберите</option>${Model.DEPTS.map(d => html`<option key=${d}>${d}</option>`)}</select><//>
+        <${Field} label="Руководитель" error=${err.manager}><select className="inp" data-k="manager" value=${f.manager} onChange=${set('manager')}><option value="">Выберите</option>${managers.map(([id, p]) => html`<option key=${id} value=${id}>${p.name}</option>`)}</select><//>
+        <${Field} label="Сколько человек" error=${err.seats}>${inp('seats', {type:'number', min:1, max:50, inputMode:'numeric'})}<//>
+      </div>
+      <div className="field">
+        <span className="l" id="reason-l">Причина открытия позиции</span>
+        <div className="radios is-row" role="radiogroup" aria-labelledby="reason-l">
+          ${Object.entries(Model.REASONS).map(([k, t], i) => html`<label key=${k}><input type="radio" name="reason" data-k=${i === 0 ? 'reason' : undefined} checked=${f.reason === k} onChange=${() => set('reason')(k)}/>${t}</label>`)}
         </div>
-      </section>
-    ${ask ? html`<div className="guard foot-bar" role="alert"><span>Есть несохранённые изменения.</span>
+        ${err.reason && html`<span className="err">${err.reason}</span>`}
+      </div>
+      ${f.reason === 'other' && html`<${Field} label="Какая причина" error=${err.reasonOther}>${inp('reasonOther')}<//>`}
+    </section>
+
+    <section className="form-sec"><h3>Кого ищем</h3>
+      <div className="grid2">
+        <${Field} label="Основные обязанности" error=${err.duties}>${area('duties', 3)}<//>
+        <${Field} label="Требования" error=${err.reqs}>${area('reqs', 3)}<//>
+      </div>
+      <div className="grid3">
+        <${Field} label="Необходимый опыт" error=${err.experience}>${inp('experience')}<//>
+        <${Field} label="Навыки" optional=${true}>${inp('skills')}<//>
+        <${Field} label="Личные качества" optional=${true}>${inp('personal')}<//>
+      </div>
+      <div className="grid-dc">
+        <${Field} label="Образование" optional=${true}>${inp('education')}<//>
+        <${Field} label="Дополнительные требования" optional=${true}>${inp('extra')}<//>
+      </div>
+    </section>
+
+    <section className="form-sec"><h3>Условия</h3>
+      <div className="field"><span className="l">Формат работы</span><${Seg} label="Формат работы" value=${f.format} onChange=${set('format')} options=${Model.FORMATS.map(x => [x, x])}/></div>
+      <div className="grid3">
+        <${Field} label="Локация" error=${err.location}>${inp('location')}<//>
+        <${Field} label="График" error=${err.schedule}>${inp('schedule')}<//>
+        <${Field} label="Тип занятости"><select className="inp" value=${f.employment} onChange=${set('employment')}>${Model.EMPLOYMENT.map(x => html`<option key=${x}>${x}</option>`)}</select><//>
+        <${Field} label="Зарплата" error=${err.salary}>${inp('salary', {placeholder:'Оклад на руки или вилка'})}<//>
+        <${Field} label="Бонусы / KPI" optional=${true}>${inp('bonus')}<//>
+        <${Field} label="Испытательный срок" optional=${true}>${inp('probation')}<//>
+        <${Field} label="Желаемая дата выхода" error=${err.start}>${inp('start', {type:'date'})}<//>
+      </div>
+    </section>
+
+    <section className="form-sec"><h3>Дополнительно</h3>
+      <div className="grid-dc">
+        <div className="field"><span className="l">Приоритет</span><${Seg} label="Приоритет" value=${f.priority} onChange=${set('priority')} options=${[['normal','Обычный'],['high','Срочно']]}/></div>
+        <${Field} label="Комментарий для HR" optional=${true}>${inp('comment')}<//>
+      </div>
+      <div className="field">
+        <span className="l">Файлы <small>необязательно</small></span>
+        ${f.files.length > 0 && html`<ul className="files">${f.files.map((x, i) => html`<li key=${i}><${Icon} n="clip" s=${15}/>${x.name}
+          <button className="btn btn-ghost" style=${{height:28}} aria-label=${'Убрать ' + x.name} onClick=${() => set('files')(f.files.filter((_, j) => j !== i))}><${Icon} n="x" s=${14}/></button></li>`)}</ul>`}
+        <${Btn} onClick=${() => file.current.click()}><${Icon} n="clip" s=${15}/>Прикрепить ТЗ или материалы<//>
+        <input ref=${file} type="file" multiple hidden onChange=${e => { const fs = Array.from(e.target.files).map(x => ({name:x.name, size:x.size})); if(fs.length) set('files')(f.files.concat(fs)); e.target.value = ''; }}/>
+      </div>
+    </section>
+    <${ModalFoot}>${ask ? html`<div className="row guard-row" role="alert"><span>Есть несохранённые изменения.</span>
         <${Btn} kind="primary" onClick=${() => { setAsk(false); save(false); }}>Сохранить черновик<//>
         <${Btn} kind="danger" onClick=${() => { const then = ask; setAsk(false); setDirty(false); Panel.leave = f => f(); then(); }}>Не сохранять<//>
         <${Btn} kind="ghost" onClick=${() => setAsk(false)}>Остаться<//></div>`
-      : html`<div className="foot-bar">
-        <${Btn} kind="primary" lg=${true} onClick=${() => save(true)}>${returned ? 'Отправить снова' : 'Отправить в HR'}<//>
-        ${!returned && html`<${Btn} lg=${true} onClick=${() => save(false)}>Сохранить черновик<//>`}
-        ${returned && html`<${Btn} lg=${true} onClick=${() => save(false)}>Сохранить<//>`}
-      </div>`}
-    </div>
-  <//>`;
+      : html`<div className="row">
+        <${Btn} kind="primary" onClick=${() => save(true)}>${returned ? 'Отправить снова' : 'Отправить в HR'}<//>
+        <${Btn} onClick=${() => save(false)}>Сохранить черновик<//>
+      </div>`}<//>
+  </div>`;
 }

@@ -24,52 +24,50 @@ const OUT=process.argv[2];
   console.log('after send:', await col(T), '| hash', await p.evaluate(()=>location.hash));
   await close();
   await as('Гульнара');
-  await open(T); await btn('Вернуть на доработку'); await btn('Вернуть на доработку');
+  await open(T); await btn('На доработку'); await btn('Вернуть на доработку');
   console.log('empty comment err:', await p.$eval('.modal .err',e=>e.textContent).catch(()=>'нет'));
   await p.fill('.modal textarea','Добавьте бонусную часть.'); await btn('Вернуть на доработку');
   console.log('returned:', await col(T)); await close();
-  await as('Данияр'); await open(T); await btn('Доработать заявку');
+  await as('Данияр'); await open(T); await btn('Доработать');
   await p.fill('[data-k=salary]','600 000 ₸ + бонус'); await btn('Отправить снова'); await close();
   console.log('resent:', await col(T));
-  await as('Гульнара'); await open(T); await btn('Принять и передать в Finance'); await close();
+  await as('Гульнара'); await open(T); await btn('Принять'); await close();
   await as('Ринат'); await open(T); await p.screenshot({path:OUT+'/f-fin.png'}); await btn('Согласовать'); await close();
-  await as('Арман'); await open(T); await btn('Одобрить поиск'); await close();
+  await as('Арман'); await open(T); await btn('Одобрить'); await close();
   console.log('approved:', await col(T));
-  await as('Гульнара'); await open(T); await p.click('.modal label:has-text("Самат")'); await btn('Назначить'); await close();
-  await as('Самат'); await open(T); await btn('Взять в работу'); await btn('Вакансия опубликована'); 
+  await as('Гульнара'); await open(T); await p.selectOption('.modal select[data-k=rec]', 'sam'); await btn('Назначить'); await close();
+  await as('Самат'); await open(T); await btn('Взять в работу'); await btn('Опубликовано'); 
   console.log('published:', await col(T));
-  await p.click('.modal .tab:has-text("Кандидаты")'); await p.waitForTimeout(200);
-  await btn('Добавить кандидата'); await btn('Добавить кандидата');
+  await btn('Добавить кандидата'); await btn('Добавить');
   console.log('cand errs:', await p.$$eval('.modal .err',e=>e.map(x=>x.textContent).join('; ')));
   await p.fill('#ac-name','Олжас Тулеуов'); await p.fill('#ac-phone','+7 701 555 12 34'); await p.selectOption('#ac-source','HH');
-  await btn('Добавить кандидата');
-  await btn('Пригласить на интервью HR'); await btn('Передать руководителю');
+  await btn('Добавить');
+  await btn('Пригласить на интервью'); await btn('Пригласить'); await btn('Передать руководителю');
   await p.screenshot({path:OUT+'/f-cand.png'});
   await close();
   await as('Данияр'); console.log('mgr turn:', await col(T)); await open(T);
-  await p.click('.modal .cand:has-text("Олжас")'); await p.waitForTimeout(400);
+  await p.click('.modal .crow:has-text("Олжас")'); await p.waitForTimeout(400);
   await btn('Одобрить'); await btn('Одобрить кандидата'); await close();
-  await as('Самат'); await open(T); await p.click('.modal .tab:has-text("Кандидаты")'); await p.click('.modal .cand:has-text("Олжас")'); await p.waitForTimeout(400);
+  await as('Самат'); await open(T); await p.click('.modal .crow:has-text("Олжас")'); await p.waitForTimeout(400);
   await btn('Отправить оффер'); await btn('Согласился'); await close();
   console.log('accepted:', await col(T));
   await open(T);
-  for(const who of ['Самат']){ const boxes=await p.locator('.modal .check input:not([disabled]):visible').elementHandles(); for(const bx of boxes){ if(!(await bx.isChecked())) await bx.check(); } }
+  for(const who of ['Самат']){ const boxes=await p.locator('.modal .ck input:not([disabled])').elementHandles(); for(const bx of boxes){ if(!(await bx.isChecked())) await bx.check(); } }
   await close(); await as('Олжас'); await open(T);
-  { const boxes=await p.locator('.modal .check input:not([disabled]):visible').elementHandles(); for(const bx of boxes){ if(!(await bx.isChecked())) await bx.check(); } }
+  { const boxes=await p.locator('.modal .ck input:not([disabled])').elementHandles(); for(const bx of boxes){ if(!(await bx.isChecked())) await bx.check(); } }
   await close(); await as('Самат'); await open(T); await p.screenshot({path:OUT+'/f-prep.png'});
   await btn('Вышел на стажировку'); await close();
   console.log('intern:', await col(T));
   await as('Данияр'); await open(T); await btn('Сохранить решение');
   console.log('dec errs:', await p.$$eval('.modal .err',e=>e.map(x=>x.textContent).join('; ')));
-  await p.check('.modal input[type=radio] >> nth=0'); await p.fill('.modal .now textarea','Берём.'); await btn('Сохранить решение'); await close();
+  await p.click('.modal .seg button:has-text("Нанимаем")'); await p.fill('.modal textarea','Берём.'); await btn('Сохранить решение'); await close();
   console.log('docs:', await col(T));
   await as('Самат'); await open(T);
-  { const boxes=await p.locator('.modal .check input:not([disabled]):visible').elementHandles(); for(const bx of boxes){ if(!(await bx.isChecked())) await bx.check(); } }
-  await btn('Сотрудник официально оформлен'); await close();
+  { const boxes=await p.locator('.modal .ck input:not([disabled])').elementHandles(); for(const bx of boxes){ if(!(await bx.isChecked())) await bx.check(); } }
+  await btn('Сотрудник оформлен'); await close();
   await as('Ринат'); console.log('fin:', await col(T)); await open(T); await btn('Принято в работу'); await btn('Учтено в ФОТ'); await btn('Учтено в ФОТ'); await close();
   console.log('final:', await col(T));
   await open(T); await p.click('.tl-more').catch(()=>{}); await p.waitForTimeout(200); await p.screenshot({path:OUT+'/f-path.png', fullPage:false});
-  await p.click('.modal .tab:has-text("Заявка")'); await p.waitForTimeout(200); await p.screenshot({path:OUT+'/f-info.png'});
   console.log(errs.join('\n')||'no errors');
   await b.close();
 })();

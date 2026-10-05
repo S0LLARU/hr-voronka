@@ -119,7 +119,7 @@ const Anim = {
 };
 
 /* выбор с обязательным комментарием: «Вернуть на доработку» сначала открывает поле */
-function Decide({actions}){
+function Decide({actions, extra}){
   const [open, setOpen] = useState(null), [text, setText] = useState(''), [err, setErr] = useState('');
   const box = useRef(null), area = useRef(null);
   useEffect(() => { if(open){ Anim.reveal(box.current); area.current && area.current.focus(); } }, [open]);
@@ -130,7 +130,7 @@ function Decide({actions}){
   };
   if(a) return html`<div ref=${box} className="decide">
     ${a.note && html`<p className="now-m" style=${{margin:'10px 0 10px'}}>${a.note}</p>`}
-    <${Field} label="Комментарий" optional=${!a.need} error=${err}>
+    <${Field} label=${a.field || 'Комментарий'} optional=${!a.need} error=${err}>
       <textarea ref=${area} className="inp" rows="3" value=${text} onInput=${e => { setText(e.target.value); setErr(''); }}
         onKeyDown=${e => { if(e.key === 'Escape'){ e.stopPropagation(); setOpen(null); } }}/>
     <//>
@@ -139,9 +139,11 @@ function Decide({actions}){
       <${Btn} kind="ghost" onClick=${() => { setOpen(null); setErr(''); }}>Отмена<//>
     </div>
   </div>`;
+  if(!actions.length && !extra) return null;
   return html`<div className="row">
     ${actions.map((x, i) => html`<${Btn} key=${i} kind=${x.kind || 'secondary'} disabled=${x.disabled}
       onClick=${() => x.ask ? setOpen(i) : x.run('')}>${x.label}<//>`)}
+    ${extra}
   </div>`;
 }
 
@@ -156,9 +158,13 @@ function ModalHead({title, sub, badge, stop, strip, children}){
       <h1 className="m-title" tabIndex="-1" data-autofocus="true">${title}</h1>
       ${sub && html`<div className="m-sub">${sub}</div>`}
     </div>
-    ${badge && html`<span className=${'badge' + (stop ? ' is-stop' : '')}>${badge}</span>`}
     ${children}
   <//>`, slot.head)}<//>`;
+}
+/* кнопки решения внизу окна: не прокручиваются, человек читает сверху вниз и решает в конце */
+function ModalFoot({children}){
+  const slot = React.useContext(ModalSlot);
+  return slot && slot.foot ? ReactDOM.createPortal(children, slot.foot) : null;
 }
 /* ссылка «назад» под заголовком окна: к заявке из кандидата и из доработки */
 function BackLink({href, children}){

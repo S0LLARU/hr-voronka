@@ -1,59 +1,37 @@
-/* Доска заявок: пять колонок — крупные фазы найма. На карточке — шаг внутри фазы
-   и чей сейчас ход. Карточки не перетаскивают: их двигают решения людей, поэтому
+/* Доска заявок: пять колонок — крупные фазы найма. Карточка коротко: что за вакансия;
+   если ход того, кто смотрит, она выделена цветом и стоит первой. Карточки не перетаскивают: их двигают решения людей, поэтому
    никто не перепрыгнет через согласование. Когда шаг сделан, карточка сама переезжает
    в следующую колонку — это видно по её движению. */
 'use strict';
 
-/* какой шаг показать на карточке: свой ход — первым, иначе первый, кто ждёт решения */
+/* свой ход — карточка выделена цветом и стоит в колонке первой */
+const isMine = (r, v) => Model.turns(r).some(x => Model.mineTurn(x, v));
 function pickTurn(r, v){
   const t = Model.turns(r);
   return t.find(x => Model.mineTurn(x, v)) || t.find(x => !x.ongoing) || t[0] || null;
 }
-const isMine = (r, v) => Model.turns(r).some(x => Model.mineTurn(x, v));
-
-function TurnLine({t, v, now}){
-  if(!t) return null;
-  const mine = Model.mineTurn(t, v), late = Model.late(t, now);
-  let time = null;
-  if(t.due) time = t.dueKind + ' ' + Model.fmtDate(t.due);
-  else if(t.since && !t.ongoing) time = Model.ago(t.since, now);
-  else if(t.count) time = t.count[0] + ' из ' + t.count[1];
-  return html`<div className=${'c-turn' + (mine ? ' is-mine' : '') + (late ? ' is-late' : '')}>
-    <span className="t">${mine ? t.mine : t.text}</span>
-    ${time && html`<span className="c-time">${late && html`<${Icon} n="late" s=${14} label="Срок прошёл"/>`}${time}</span>`}
-  </div>`;
-}
 
 function Card({r, v, now, current, onOpen}){
-  const ph = Model.phase(r), pr = Model.progress(r), t = pickTurn(r, v), mine = t && Model.mineTurn(t, v);
-  const hires = Model.activeHires(r), open = Model.openHires(r);
-  if(ph === 'closed'){
-    const res = r.status === 'rejected' ? 'Отклонена' : r.status === 'cancelled' ? 'Отменена' : 'Закрыта за ' + Model.days(r.created, r.closedAt) + ' ' + Model.plural(Model.days(r.created, r.closedAt), 'день','дня','дней');
-    return html`<button className="card is-closed" data-card=${r.id} aria-current=${current ? 'true' : undefined} onClick=${() => onOpen(r.id)}>
-      <div className="c-top"><span className="c-title">${r.title}</span></div>
-      <div className="c-sub">${r.dept} / ${r.project}</div>
-      <div className="c-meta"><span>${res}</span><span className="num muted">${Model.fmtDate(r.closedAt)}</span></div>
-    </button>`;
-  }
+  const ph = Model.phase(r), mine = isMine(r, v), open = Model.openHires(r);
   let meta = null;
-  if(ph === 'search' && r.recruiter){
-    const n = r.candidates.filter(c => c.stage !== 'rejected').length;
-    meta = html`<div className="c-meta"><span>Рекрутер: ${shortName(r.recruiter)}</span>
-      <span className="num">${hires.length ? 'выбран ' + hires.length + ' из ' + r.seats : n ? n + ' ' + Model.plural(n, 'кандидат','кандидата','кандидатов') : ''}</span></div>`;
-  }
-  if((ph === 'start' || ph === 'hire') && open.length){
+  if(ph === 'closed'){
+    const res = r.status === 'rejected' ? 'Отклонено' : r.status === 'cancelled' ? 'Отменено' : 'Закрыта за ' + Model.days(r.created, r.closedAt) + ' ' + Model.plural(Model.days(r.created, r.closedAt), 'день','дня','дней');
+    meta = html`<div className="c-meta"><span>${res}</span><span className="num">${Model.fmtDate(r.closedAt)}</span></div>`;
+  } else if(ph === 'search' && r.status === 'published'){
+    const n = r.candidates.filter(c => c.stage !== 'rejected' && c.stage !== 'accepted').length;
+    if(n) meta = html`<div className="c-meta"><span className="num">${n} ${Model.plural(n, 'кандидат','кандидата','кандидатов')}</span></div>`;
+  } else if((ph === 'start' || ph === 'hire') && open.length){
     meta = html`<div className="c-meta"><span>${open.map(h => h.name).join(', ')}</span></div>`;
   }
-  return html`<button className=${'card' + (mine ? ' is-mine' : '')} data-card=${r.id} aria-current=${current ? 'true' : undefined} onClick=${() => onOpen(r.id)}>
+  return html`<button className=${'card' + (mine ? ' is-mine' : '') + (ph === 'closed' ? ' is-closed' : '')} data-card=${r.id} aria-current=${current ? 'true' : undefined}
+    aria-label=${mine ? r.title + ', ваш ход' : null} onClick=${() => onOpen(r.id)}>
     <div className="c-top">
       <span className="c-title">${r.title}</span>
       ${r.seats > 1 && html`<span className="c-seats num">× ${r.seats}</span>`}
-      ${r.priority === 'high' && html`<span className="c-urgent">Срочно</span>`}
+      ${r.priority === 'high' && ph !== 'closed' && html`<span className="c-urgent">Срочно</span>`}
     </div>
     <div className="c-sub">${r.dept} / ${r.project}</div>
     ${meta}
-    ${pr && html`<div className="c-steps" aria-hidden="true">${Array.from({length:pr.n}, (_, i) => html`<i key=${i} className=${i < pr.at ? 'on' : i === pr.at ? 'cur' : ''}/>`)}</div>`}
-    <${TurnLine} t=${t} v=${v} now=${now}/>
   </button>`;
 }
 
