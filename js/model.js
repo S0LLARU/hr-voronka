@@ -16,11 +16,11 @@ const Model = (function(){
 
   const PEOPLE = {
     dan:{name:'Данияр Ахметов', role:'manager', dept:'Продакшн'},
-    mad:{name:'Мадина Касымова', role:'manager', dept:'Маркетинг'},
-    ase:{name:'Асель Жумабаева', role:'manager', dept:'Продажи'},
+    mad:{name:'Мадина Касымова', role:'manager', dept:'Маркетинг', f:1},
+    ase:{name:'Асель Жумабаева', role:'manager', dept:'Продажи', f:1},
     erl:{name:'Ерлан Мусин', role:'manager', dept:'Разработка'},
-    gul:{name:'Гульнара Исаева', role:'hrd'},
-    ali:{name:'Алия Нурланова', role:'recruiter'},
+    gul:{name:'Гульнара Исаева', role:'hrd', f:1},
+    ali:{name:'Алия Нурланова', role:'recruiter', f:1},
     sam:{name:'Самат Беков', role:'recruiter'},
     rin:{name:'Ринат Оспанов', role:'finance'},
     arm:{name:'Арман Тлеубаев', role:'ceo'},
@@ -223,6 +223,7 @@ const Model = (function(){
   function find(S, id){ const r = S.requests.find(x => x.id === id); if(!r) throw new Error('Нет заявки ' + id); return r; }
   const cand = (r, cid) => r.candidates.find(c => c.id === cid);
   const hire = (r, hid) => r.hires.find(h => h.id === hid);
+  const lower1 = t => t.charAt(0).toLowerCase() + t.slice(1);
   function ctl(c, at, by, text){ c.timeline.push({at, by, text}); }
 
   const FIELDS = ['title','dept','project','manager','seats','reason','reasonOther','duties','reqs','experience','skills','personal','education','extra',
@@ -281,14 +282,14 @@ const Model = (function(){
       c.stage = p.to; c.stageAt = at;
       const text = {hr:'Приглашён на интервью HR', test:'Отправлено тестовое', mgr:'Передан руководителю'}[p.to] || ('Этап: ' + name);
       ctl(c, at, by, text + (p.when ? ' — ' + p.when : ''));
-      log(r, by, at, c.name + ': ' + text.toLowerCase(), p.comment, 'cand');
+      log(r, by, at, c.name + ': ' + lower1(text), p.comment, 'cand');
     },
-    note(S, by, at, p){ const r = find(S, p.id), c = cand(r, p.cid); ctl(c, at, by, p.text); log(r, by, at, c.name + ': ' + p.text.toLowerCase(), '', 'cand'); },
+    note(S, by, at, p){ const r = find(S, p.id), c = cand(r, p.cid); ctl(c, at, by, p.text); log(r, by, at, c.name + ': ' + lower1(p.text), '', 'cand'); },
     addFiles(S, by, at, p){
       const r = find(S, p.id), c = cand(r, p.cid);
       p.files.forEach(f => c.files.push(Object.assign({at, by}, f)));
       const t = 'Прикреплено: ' + p.files.map(f => f.kind.toLowerCase() + ' ' + f.name).join(', ');
-      ctl(c, at, by, t); log(r, by, at, c.name + ': ' + t.toLowerCase(), '', 'cand');
+      ctl(c, at, by, t); log(r, by, at, c.name + ': ' + lower1(t), '', 'cand');
     },
     feedback(S, by, at, p){
       const r = find(S, p.id), c = cand(r, p.cid);

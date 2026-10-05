@@ -41,6 +41,7 @@ function RolePicker(){
     <button className="who" ref=${m.btn} aria-haspopup="menu" aria-expanded=${m.open} aria-label=${'Смотрю как: ' + me.name} onClick=${() => m.setOpen(!m.open)}>
       <span className="ava" aria-hidden="true"><${Icon} n="user" s=${17}/></span>
       <span className="who-t"><span className="who-n">${me.name}</span><span className="who-r">${Model.ROLE[me.role]}${me.dept ? ', ' + me.dept : ''}</span></span>
+      <span className="who-c" aria-hidden="true"><${Icon} n="updown" s=${16}/></span>
     </button>
   </div>`;
 }

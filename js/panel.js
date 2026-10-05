@@ -86,7 +86,7 @@ function DecisionForm({r, h}){
 }
 
 /* блок «ваш ход»: одно решение — одна понятная кнопка; возврат и отказ — только с комментарием */
-function MyTurn({r, t, setTab, now}){
+function MyTurn({r, t, setTab, tab, now}){
   const d = (type, p) => Store.dispatch(type, Object.assign({id:r.id}, p));
   const late = Model.late(t, now);
   const waited = t.since ? 'Ждёт ' + Model.ago(t.since, now) : t.due ? (t.dueKind === 'выход' ? 'Выход ' : 'Срок — ') + Model.fmtDate(t.due) : '';
@@ -121,7 +121,7 @@ function MyTurn({r, t, setTab, now}){
       <${Facts} rows=${[['Срок закрытия', Model.fmtDate(r.deadline, true)], ['Приоритет', Model.PRIORITY[r.priority]]]}/>
       <div className="row"><${Btn} kind="primary" onClick=${() => d('take')}>Взять в работу<//></div>`);
     case 'inwork': return box(html`<${PublishForm} r=${r}/>`);
-    default: return box(html`<div className="row"><${Btn} kind="primary" onClick=${() => setTab('candidates')}>Открыть кандидатов<//></div>`);
+    default: return box(tab === 'candidates' ? null : html`<div className="row"><${Btn} kind="primary" onClick=${() => setTab('candidates')}>Открыть кандидатов<//></div>`);
   }
 
   if(h.stage === 'prep'){
@@ -322,7 +322,7 @@ function CandidateView({r, c, v, now}){
     if(reason === 'Другое' && !rc.trim()){ setErr('Напишите причину'); return; }
     d('reject', {reason, comment:rc.trim()}); setRej(false);
   };
-  const stageName = c.stage === 'rejected' ? 'Отказ' : c.stage === 'accepted' ? 'Выбран' : c.stage === 'approved' ? 'Одобрен руководителем' : Model.STAGES.find(s => s.id === c.stage).name;
+  const stageName = c.stage === 'rejected' ? 'Отказ' : c.stage === 'accepted' ? 'Выбран' : c.stage === 'approved' ? 'Одобрен руководителем' : c.stage === 'mgr' ? 'У руководителя' : Model.STAGES.find(s => s.id === c.stage).name;
 
   let actions = null;
   if(open && editor && !rej){
@@ -469,6 +469,9 @@ function InfoTab({r, v}){
 /* лента событий справа: что было, кто и когда. Длинная история свёрнута до последних событий */
 const TL_ICON = {new:'doc', ok:'ok', stop:'no', ret:'ret', ev:'ev'};
 const whoLine = id => { const p = Model.PEOPLE[id]; return p ? p.name + ', ' + (p.role === 'manager' ? 'руководитель' : p.role === 'recruiter' ? 'рекрутер' : Model.ROLE[p.role]) : ''; };
+/* записи в истории написаны от мужского рода; для женщин глагол меняется при показе */
+const FEM = /^(Создал|Отправил|Вернул|Принял|Согласовал|Отклонил|Одобрил|Назначил|Взял|Опубликовал|Добавил|Отказал|Отметил|Снял|Продлил|Отменил|Изменил|Доработал)(?=[\s:])/;
+const byGender = (text, id) => !(Model.PEOPLE[id] || {}).f ? text : text.replace(FEM, '$1а').replace(/^Учёл/, 'Учла').replace(' и отправил ', ' и отправила ');
 function logKind(l){
   if(l.step === 'created') return 'new';
   if(l.step === 'reject' || l.step === 'cancel' || /^Отказал|^Не продолжаем/.test(l.text)) return 'stop';
@@ -478,9 +481,10 @@ function logKind(l){
 }
 function Timeline({items, limit = 8}){
   const [all, setAll] = useState(false);
+  items = items.slice().sort((a, b) => a.at - b.at);
   const hidden = !all && items.length > limit ? items.length - limit + 1 : 0;
   return html`<div className="tl-wrap">
-    ${hidden > 0 && html`<button className="tl-more" onClick=${() => setAll(true)}>Ещё ${hidden} ${Model.plural(hidden, 'событие', 'события', 'событий')} раньше</button>`}
+    ${hidden > 0 && html`<button className="tl-more" onClick=${() => setAll(true)}><${Icon} n="down" s=${14}/>Показать ещё ${hidden} ${Model.plural(hidden, 'событие', 'события', 'событий')}</button>`}
     <ol className="tl">${items.slice(hidden).map((x, i) => html`<li key=${i}>
       <span className=${'tl-i is-' + x.kind}><${Icon} n=${TL_ICON[x.kind]} s=${20}/></span>
       <div className="tl-b">
@@ -547,7 +551,7 @@ function RequestPage({r, view, cid}){
   const hires = Model.activeHires(r), ph = Model.phase(r), stopped = r.status === 'rejected' || r.status === 'cancelled';
   const tabs = [['path','Путь'], showCands && ['candidates','Кандидаты', r.candidates.filter(c => c.stage !== 'rejected').length], p.request && ['info','Заявка']].filter(Boolean);
   const late = r.deadline && r.deadline < now && ph !== 'closed';
-  const log = r.log.filter(l => !/^(Отметил|Снял отметку):/.test(l.text)).map(l => ({at:l.at, title:l.text, who:whoLine(l.by), comment:l.comment, kind:logKind(l)}));
+  const log = r.log.filter(l => !/^(Отметил|Снял отметку):/.test(l.text)).map(l => ({at:l.at, title:byGender(l.text, l.by), who:whoLine(l.by), comment:l.comment, kind:logKind(l)}));
   return html`<div className="page">
     <div className="pg-main">
       <section className="box">
@@ -565,7 +569,7 @@ function RequestPage({r, view, cid}){
           </div>`}
         </div>
         ${cancel && html`<${CancelForm} r=${r} onDone=${() => setCancel(false)}/>`}
-        ${!cancel && mine.map((t, i) => html`<${MyTurn} key=${'m' + i + (t.h || '') + r.status} r=${r} t=${t} now=${now} setTab=${setTab}/>`)}
+        ${!cancel && mine.map((t, i) => html`<${MyTurn} key=${'m' + i + (t.h || '') + r.status} r=${r} t=${t} now=${now} setTab=${setTab} tab=${tab}/>`)}
         ${!cancel && others.map((t, i) => html`<${Waiting} key=${'o' + i} t=${t} now=${now}/>`)}
         ${!cancel && r.seats > 1 && hires.length > 0 && hires.length < r.seats && html`<div className="now-m" style=${{marginTop:10}}>Выбрано ${hires.length} из ${r.seats}, подбор продолжается</div>`}
       </section>
