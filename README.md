@@ -2,7 +2,7 @@
 
 Внутренняя HR-система: руководитель создаёт заявку на сотрудника и видит, где она сейчас, кто её держит и каких кандидатов нашли. HR, рекрутер, Finance, CEO и IT видят ту же заявку со своей стороны и делают свой шаг прямо в ней.
 
-Сделано по ТЗ «Воронка найма» и стандарту дизайна команды ([standart_for_product_design](https://github.com/S0LLARU/standart_for_product_design)). Решения и их причины — в [docs/SOLUTION.md](docs/SOLUTION.md).
+Сделано по ТЗ «Воронка найма» (`docs/TZ.md`) и стандарту дизайна команды ([standart_for_product_design](https://github.com/S0LLARU/standart_for_product_design)). Решения и их причины — в [docs/SOLUTION.md](docs/SOLUTION.md).
 
 ## Как запустить
 
