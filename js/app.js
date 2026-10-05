@@ -109,6 +109,7 @@ function App(){
   const req = route.id ? S.requests.find(r => r.id === route.id && Model.visible(r, v)) : null;
   const open = !!(route.form === 'new' || req);
   const [shown, setShown] = useState(open ? route : null);
+  const [slot, setSlot] = useState(null);
   const lastId = useRef(null), modal = useRef(null), scrim = useRef(null), main = useRef(null), body = useRef(null), wasShown = useRef(false);
   useEffect(() => {
     setDrawer(false);
@@ -141,23 +142,21 @@ function App(){
   useLayoutEffect(() => {
     if(!shown || !body.current) return;
     body.current.scrollTop = 0;
-    if(prevKey.current) Anim.page(body.current.firstElementChild);
+    if(prevKey.current && prevKey.current !== key) Anim.page(body.current.firstElementChild);
     prevKey.current = key;
-    const f = body.current.querySelector('[data-autofocus]'); if(f) f.focus({preventScroll:true});
-  }, [key]);
+    const f = modal.current && modal.current.querySelector('[data-autofocus]'); if(f) f.focus({preventScroll:true});
+  }, [key, slot]);
   useEffect(() => { if(!shown) prevKey.current = ''; }, [!!shown]);
 
   const sr = shown && shown.id ? S.requests.find(r => r.id === shown.id) : null;
-  let crumbs = [], content = null, wide = true, label = '';
+  let content = null, wide = true, label = '';
   if(shown && shown.form){
     const fr = shown.form === 'edit' ? sr : null;
     wide = false; label = fr ? fr.title : 'Новая заявка';
-    crumbs = fr ? [[fr.title, '#/r/' + fr.id], [fr.status === 'draft' ? 'Черновик' : 'Доработка']] : [];
     if(shown.form === 'new' || fr) content = html`<${RequestForm} key=${key} r=${fr} onClose=${id => { Panel.leave = f => f(); go(id ? '#/r/' + id : '#/'); }}/>`;
   } else if(sr){
     const c = shown.cid && sr.candidates.find(x => x.id === shown.cid);
-    label = sr.title; wide = shown.view !== 'add';
-    crumbs = shown.view === 'main' ? [] : [[sr.title, '#/r/' + sr.id], [shown.view === 'add' ? 'Новый кандидат' : c ? c.name : 'Кандидат']];
+    label = shown.view === 'cand' && c ? c.name : sr.title; wide = shown.view !== 'add';
     content = html`<${RequestPage} key=${sr.id} r=${sr} view=${shown.view} cid=${shown.cid}/>`;
   }
   const canCreate = me.role === 'manager' || me.role === 'hrd';
@@ -177,12 +176,12 @@ function App(){
     </div>
     ${shown && html`<${Fragment}>
       <div className="scrim is-modal" ref=${scrim} onClick=${close}/>
-      <div className=${'modal' + (wide ? '' : ' is-narrow') + (crumbs.length ? '' : ' no-crumbs')} ref=${modal} role="dialog" aria-modal="true" aria-label=${label}>
-        <div className="m-bar">
-          <${Crumbs} items=${crumbs}/>
+      <div className=${'modal' + (wide ? '' : ' is-narrow')} ref=${modal} role="dialog" aria-modal="true" aria-label=${label}>
+        <div className="m-head">
+          <div className="m-slot" ref=${setSlot}/>
           <button className="icon-btn m-x" aria-label="Закрыть" onClick=${close}><${Icon} n="x" s=${18}/></button>
         </div>
-        <div className="m-body" ref=${body}>${content}</div>
+        <div className="m-body" ref=${body}><${ModalSlot.Provider} value=${slot}>${content}<//></div>
       </div>
     <//>`}
   </div>`;

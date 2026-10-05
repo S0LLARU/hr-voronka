@@ -53,8 +53,8 @@ function RequestForm({r, onClose}){
 
   return html`<${Fragment}>
     <div className="page is-narrow" ref=${box}>
+      <${ModalHead} title=${r ? (r.status === 'draft' ? 'Черновик заявки' : 'Доработка заявки') : 'Новая заявка на подбор'} sub=${r && html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`}/>
       <section className="box">
-        <h1 className="p-title" tabIndex="-1" data-autofocus="true">${r ? (r.status === 'draft' ? 'Черновик заявки' : 'Доработка заявки') : 'Новая заявка на подбор'}</h1>
         ${returned && html`<div className="now is-mine"><div className="now-t">Что просят исправить</div><blockquote className="now-q">${r.returned.comment}</blockquote>
           <div className="now-m">${name(r.returned.by)}, ${Model.fmtDateTime(r.returned.at)}</div></div>`}
         <div className="form-body">

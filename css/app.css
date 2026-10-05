@@ -291,16 +291,20 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 .modal{position:fixed;z-index:41;top:24px;bottom:24px;left:50%;width:min(1240px,calc(100vw - 56px));margin-left:calc(min(1240px,calc(100vw - 56px)) / -2);
   display:flex;flex-direction:column;border-radius:18px;background:var(--bg);box-shadow:0 0 0 1px rgba(17,17,19,.06),0 24px 64px rgba(17,17,19,.22)}
 .modal.is-narrow{width:min(900px,calc(100vw - 56px));margin-left:calc(min(900px,calc(100vw - 56px)) / -2)}
-.m-bar{display:flex;align-items:center;gap:10px;height:52px;padding:0 14px 0 28px;border-bottom:1px solid var(--line);flex:none}
-.m-body{border-radius:0 0 18px 18px}
-/* без крошек полоса не нужна: крестик стоит в углу окна и не уезжает при прокрутке */
-.no-crumbs .m-bar{position:absolute;top:0;right:0;z-index:3;height:auto;padding:16px 14px 0 0;border:0;background:none}
-.no-crumbs .m-bar .crumbs{display:none}
-.no-crumbs .m-body{border-radius:18px}
-.modal.no-crumbs .page{padding-right:64px}
-.no-crumbs .m-x{background:var(--bg)}
-.no-crumbs .m-x:hover{background:var(--hover)}
-.m-body{flex:1;min-height:0;overflow-y:auto}
+.m-head{display:flex;align-items:center;gap:12px;min-height:76px;padding:14px 18px 14px 28px;border-bottom:1px solid var(--line);flex:none}
+.m-slot{display:contents}
+.m-t{flex:1;min-width:0}
+.m-title{margin:0;font-size:20px;line-height:1.25;font-weight:600;letter-spacing:-.016em;outline:none;overflow-wrap:anywhere}
+.m-title small{font-size:15px;font-weight:500;color:var(--ink-3);letter-spacing:0;margin-left:6px}
+.m-sub{margin-top:2px;color:var(--ink-3)}
+.m-back{display:inline-flex;align-items:center;gap:4px;margin-left:-2px;color:var(--ink-3);text-decoration:none;border-radius:6px}
+.m-back:hover{color:var(--ink)}
+.m-more{position:relative}
+.m-head .icon-btn{flex:none}
+.m-head .m-x{margin-left:-4px}
+.m-body{flex:1;min-height:0;overflow-y:auto;border-radius:0 0 18px 18px}
+.box > .now:first-child,.box > .box-act:first-child{margin-top:0}
+.form-body:first-child{margin-top:0}
 .modal .page{max-width:none;padding:24px 28px 32px}
 .modal .page.is-narrow{grid-template-columns:minmax(0,1fr);padding-bottom:0}
 
@@ -328,10 +332,12 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
   .col{scroll-snap-align:start}
   .modal,.modal.is-narrow{top:0;bottom:0;width:100vw;margin-left:-50vw;border-radius:0}
   .m-body{border-radius:0}
-  .m-bar{height:56px;padding:0 8px 0 16px}
-  .no-crumbs .m-bar{position:static;justify-content:flex-end;height:52px;padding:0 8px;border-bottom:1px solid var(--line);background:var(--bg)}
-  .modal.no-crumbs .page{padding-right:12px}
-  .no-crumbs .m-body{border-radius:0}
+  .m-head{flex-wrap:wrap;min-height:0;gap:8px 8px;padding:12px 8px 12px 16px}
+  .m-t{flex-basis:calc(100% - 96px)}
+  .m-title{font-size:18px}
+  .m-head .badge{order:5;margin-top:2px}
+  .m-head .m-more{order:3}
+  .m-head .m-x{order:4}
   .page,.page.is-narrow,.modal .page,.modal .page.is-narrow{padding:16px 12px 32px;gap:12px}
   .pg-main,.pg-side{gap:12px}
   .box{padding:18px 16px}

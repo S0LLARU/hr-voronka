@@ -145,6 +145,25 @@ function Decide({actions}){
   </div>`;
 }
 
+/* шапка модального окна: страница сама говорит, что показать, а окно держит место и крестик */
+const ModalSlot = React.createContext(null);
+function ModalHead({title, sub, badge, stop, children}){
+  const slot = React.useContext(ModalSlot);
+  if(!slot) return null;
+  return ReactDOM.createPortal(html`<${Fragment}>
+    <div className="m-t">
+      <h1 className="m-title" tabIndex="-1" data-autofocus="true">${title}</h1>
+      ${sub && html`<div className="m-sub">${sub}</div>`}
+    </div>
+    ${badge && html`<span className=${'badge' + (stop ? ' is-stop' : '')}>${badge}</span>`}
+    ${children}
+  <//>`, slot);
+}
+/* ссылка «назад» под заголовком окна: к заявке из кандидата и из доработки */
+function BackLink({href, children}){
+  return html`<a className="m-back" href=${href} onClick=${e => { e.preventDefault(); Panel.leave(() => go(href)); }}><${Icon} n="back" s=${14}/>${children}</a>`;
+}
+
 /* дата для <input type=date> и обратно */
 const toInput = t => { if(!t) return ''; const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
 const fromInput = s => { if(!s) return null; const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d, 10).getTime(); };

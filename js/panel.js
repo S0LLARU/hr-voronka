@@ -348,16 +348,13 @@ function CandidateView({r, c, v, now}){
       {label:'Отказать', kind:'danger', ask:true, need:true, whom:'рекрутер', confirm:'Отказать кандидату', run:x => d('feedback', {verdict:'reject', comment:x})}]}/>
   </div>`;
 
+  const hasTop = mgrDecide || actions || (open && editor && c.stage !== 'mgr') || rej || c.stage === 'rejected';
   const ckind = x => /одобрил$|согласил|Выбран|нанимаем/i.test(x.text) ? 'ok' : /отказ/i.test(x.text) ? 'stop' : 'ev';
   const ctimeline = c.timeline.map((x, i) => ({at:x.at, title:x.text, who:x.by ? whoLine(x.by) : '', kind:i === 0 ? 'new' : ckind(x)}));
   return html`<div className="page">
     <div className="pg-main">
-      <section className="box">
-        <div className="box-h">
-          <div className="grow"><h1 className="p-title" tabIndex="-1" data-autofocus="true">${c.name}</h1>
-            ${c.position && html`<div className="p-sub">${c.position}</div>`}</div>
-          <span className=${'badge' + (c.stage === 'rejected' ? ' is-stop' : '')}>${stageName}</span>
-        </div>
+      <${ModalHead} title=${c.name} sub=${html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`} badge=${stageName} stop=${c.stage === 'rejected'}/>
+      ${hasTop && html`<section className="box">
         ${mgrDecide}
         ${actions && html`<div className="box-act">${actions}</div>`}
         ${open && editor && c.stage !== 'mgr' && !rej && html`<div className="row" style=${{marginTop:12}}><${Btn} kind="ghost" className="btn-flush" onClick=${() => setRej(true)}>Отказать кандидату<//></div>`}
@@ -369,8 +366,9 @@ function CandidateView({r, c, v, now}){
         </div>`}
         ${c.stage === 'rejected' && html`<div className="now"><div className="now-t">Отказ: ${c.reject.reason.toLowerCase()}</div>
           <div className="now-m">${name(c.reject.by)}, ${Model.fmtDateTime(c.reject.at)}</div>${c.reject.comment && html`<blockquote className="now-q">${c.reject.comment}</blockquote>`}</div>`}
-      </section>
+      </section>`}
       <section className="box">
+        ${c.position && html`<p className="muted" style=${{margin:'0 0 18px'}}>${c.position}</p>`}
         <section className="sec"><h2 className="sec-h">Контакты</h2>
           <${Facts} rows=${[['Телефон', c.phone && html`<a href=${'tel:' + c.phone.replace(/\s/g, '')}>${c.phone}</a>`],
             ['Telegram', c.tg && html`<a href=${'https://t.me/' + c.tg.replace('@', '')} target="_blank" rel="noopener">${c.tg}</a>`],
@@ -427,9 +425,8 @@ function AddCandidate({r, onDone, onCancel, guard}){
     onDone(cid);
   };
   return html`<div className="page is-narrow">
+    <${ModalHead} title="Новый кандидат" sub=${html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`}/>
     <section className="box">
-      <h1 className="p-title" tabIndex="-1" data-autofocus="true">Новый кандидат</h1>
-      <div className="p-sub" style=${{marginBottom:20}}>${r.title}</div>
       <${Field} id="ac-name" label="ФИО" error=${err.name}><input className="inp" value=${f.name} onInput=${set('name')} autoComplete="off"/><//>
       <div className="grid2">
         <${Field} id="ac-phone" label="Телефон" error=${err.contact}><input className="inp" type="tel" value=${f.phone} onInput=${set('phone')} placeholder="+7"/><//>
@@ -542,7 +539,7 @@ function RequestPage({r, view, cid}){
     const c = r.candidates.find(x => x.id === cid);
     return html`<div>
       ${view === 'add' ? html`<${AddCandidate} r=${r} guard=${guard} onCancel=${() => leave(() => { guard.current = false; go('#/r/' + r.id); })} onDone=${id => { guard.current = false; go('#/r/' + r.id + '/c/' + id); }}/>`
-        : c ? html`<${CandidateView} r=${r} c=${c} v=${v} now=${now}/>` : html`<div className="page is-narrow"><section className="box"><h1 className="p-title" tabIndex="-1" data-autofocus="true">Кандидат не найден</h1></section></div>`}
+        : c ? html`<${CandidateView} r=${r} c=${c} v=${v} now=${now}/>` : html`<div className="page is-narrow"><${ModalHead} title="Кандидат не найден" sub=${html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`}/></div>`}
       ${ask && html`<div className="guard" role="alert"><span>Кандидат не добавлен. Выйти без сохранения?</span>
         <${Btn} kind="danger" onClick=${() => { const f = ask; setAsk(null); guard.current = false; f(); }}>Выйти<//><${Btn} kind="ghost" onClick=${() => setAsk(null)}>Остаться<//></div>`}
     </div>`;
@@ -554,25 +551,20 @@ function RequestPage({r, view, cid}){
   const log = r.log.filter(l => !/^(Отметил|Снял отметку):/.test(l.text)).map(l => ({at:l.at, title:byGender(l.text, l.by), who:whoLine(l.by), comment:l.comment, kind:logKind(l)}));
   return html`<div className="page">
     <div className="pg-main">
-      <section className="box">
-        <div className="box-h">
-          <div className="grow">
-            <h1 className="p-title" tabIndex="-1" data-autofocus="true">${r.title}${r.seats > 1 && html`<small className="num">× ${r.seats}</small>`}</h1>
-            <div className="p-sub">${r.dept} / ${r.project}</div>
-          </div>
-          <span className=${'badge' + (stopped ? ' is-stop' : '')}>${Model.statusText(r)}</span>
-          ${p.cancel && html`<div style=${{position:'relative'}}>
+      <${ModalHead} title=${html`${r.title}${r.seats > 1 && html`<small className="num">× ${r.seats}</small>`}`} sub=${r.dept + ' / ' + r.project} badge=${Model.statusText(r)} stop=${stopped}>
+          ${p.cancel && html`<div className="m-more">
             <button className="icon-btn" ref=${more.btn} aria-label="Ещё" aria-haspopup="menu" aria-expanded=${more.open} onClick=${() => more.setOpen(!more.open)}><${Icon} n="more"/></button>
             ${more.open && html`<div className="menu" role="menu" ref=${more.box} onKeyDown=${more.onMenuKey} style=${{right:0, top:38}}>
               <button className="menu-item" role="menuitem" style=${{color:'var(--red)'}} onClick=${() => { more.setOpen(false); setCancel(true); }}>Отменить заявку</button>
             </div>`}
           </div>`}
-        </div>
+      <//>
+      ${(cancel || mine.length > 0 || others.length > 0) && html`<section className="box">
         ${cancel && html`<${CancelForm} r=${r} onDone=${() => setCancel(false)}/>`}
         ${!cancel && mine.map((t, i) => html`<${MyTurn} key=${'m' + i + (t.h || '') + r.status} r=${r} t=${t} now=${now} setTab=${setTab} tab=${tab}/>`)}
         ${!cancel && others.map((t, i) => html`<${Waiting} key=${'o' + i} t=${t} now=${now}/>`)}
         ${!cancel && r.seats > 1 && hires.length > 0 && hires.length < r.seats && html`<div className="now-m" style=${{marginTop:10}}>Выбрано ${hires.length} из ${r.seats}, подбор продолжается</div>`}
-      </section>
+      </section>`}
       <section className="box">
         <div className="pills" role="tablist" aria-label="Разделы заявки" ref=${tabsRef}>
           ${tabs.map(([k, t, n]) => html`<button key=${k} role="tab" className="tab" id=${'tab-' + k} aria-selected=${tab === k} aria-controls="tabpanel"
