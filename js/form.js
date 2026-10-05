@@ -43,8 +43,8 @@ function RequestForm({r, onClose}){
     setDirty(false);
     onClose(id, true);
   };
-  const close = () => { if(dirty){ setAsk(true); return; } onClose(r && r.id); };
-  useEffect(() => { Panel.leave = then => { if(dirty){ setAsk(true); return; } then(); }; });
+  useEffect(() => { Panel.leave = then => { if(dirty){ setAsk(() => then); return; } then(); }; });
+  useEffect(() => () => { Panel.leave = f => f(); }, []);
   useEffect(() => { const t = box.current && box.current.querySelector('[data-autofocus]'); t && t.focus({preventScroll:true}); }, []);
 
   const inp = (k, props) => html`<input className="inp" data-k=${k} value=${f[k]} onInput=${set(k)} ...${props || {}}/>`;
@@ -52,14 +52,12 @@ function RequestForm({r, onClose}){
   const returned = r && r.status === 'returned';
 
   return html`<${Fragment}>
-    <div className="p-scroll" ref=${box}>
-      <div className="p-head">
-        <div className="p-bar"><span className="grow"/><button className="icon-btn" aria-label="Закрыть" onClick=${close}><${Icon} n="x" s=${18}/></button></div>
-        <h2 className="p-title" tabIndex="-1" data-autofocus="true">${r ? (r.status === 'draft' ? 'Черновик заявки' : 'Доработка заявки') : 'Новая заявка на подбор'}</h2>
+    <div className="page is-narrow" ref=${box}>
+      <section className="box">
+        <h1 className="p-title" tabIndex="-1" data-autofocus="true">${r ? (r.status === 'draft' ? 'Черновик заявки' : 'Доработка заявки') : 'Новая заявка на подбор'}</h1>
         ${returned && html`<div className="now is-mine"><div className="now-t">Что просят исправить</div><blockquote className="now-q">${r.returned.comment}</blockquote>
           <div className="now-m">${name(r.returned.by)}, ${Model.fmtDateTime(r.returned.at)}</div></div>`}
-      </div>
-      <div className="p-body">
+        <div className="form-body">
         <section className="form-sec"><h3>Общая информация</h3>
           <${Field} label="Должность" error=${err.title}>${inp('title', {autoComplete:'off'})}<//>
           <div className="grid2">
@@ -114,16 +112,17 @@ function RequestForm({r, onClose}){
             <input ref=${file} type="file" multiple hidden onChange=${e => { const fs = Array.from(e.target.files).map(x => ({name:x.name, size:x.size})); if(fs.length) set('files')(f.files.concat(fs)); e.target.value = ''; }}/>
           </div>
         </section>
-      </div>
-    </div>
-    ${ask ? html`<div className="guard" role="alert"><span>Есть несохранённые изменения.</span>
+        </div>
+      </section>
+    ${ask ? html`<div className="guard foot-bar" role="alert"><span>Есть несохранённые изменения.</span>
         <${Btn} kind="primary" onClick=${() => { setAsk(false); save(false); }}>Сохранить черновик<//>
-        <${Btn} kind="danger" onClick=${() => { setAsk(false); setDirty(false); onClose(r && r.id); }}>Не сохранять<//>
+        <${Btn} kind="danger" onClick=${() => { const then = ask; setAsk(false); setDirty(false); Panel.leave = f => f(); then(); }}>Не сохранять<//>
         <${Btn} kind="ghost" onClick=${() => setAsk(false)}>Продолжить<//></div>`
-      : html`<div className="p-foot">
+      : html`<div className="foot-bar">
         <${Btn} kind="primary" lg=${true} onClick=${() => save(true)}>${returned ? 'Отправить снова' : 'Отправить в HR'}<//>
         ${!returned && html`<${Btn} lg=${true} onClick=${() => save(false)}>Сохранить черновик<//>`}
         ${returned && html`<${Btn} lg=${true} onClick=${() => save(false)}>Сохранить<//>`}
       </div>`}
+    </div>
   <//>`;
 }

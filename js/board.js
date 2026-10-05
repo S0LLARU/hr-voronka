@@ -66,8 +66,11 @@ function sortCards(list, v, now){
   return list.slice().sort((a, b) => { const x = key(a), y = key(b); return x[0] - y[0] || x[1] - y[1] || x[2] - y[2]; });
 }
 
+/* места карточек помнятся между открытиями доски: вернулись из заявки после решения —
+   карточка доезжает до новой колонки у вас на глазах */
+const boardMem = {rects:new Map(), ver:null};
 function Board({list, v, now, current, onOpen, version}){
-  const ref = useRef(null), rects = useRef(new Map()), lastVer = useRef(version);
+  const ref = useRef(null), rects = useRef(boardMem.rects), lastVer = useRef(boardMem.ver);
   const cols = Model.COLUMNS.map(c => {
     let items = list.filter(r => Model.phase(r) === c.id);
     if(c.id === 'closed') items = items.filter(r => now - r.closedAt < 30 * Model.D).sort((a, b) => b.closedAt - a.closedAt);
@@ -78,7 +81,7 @@ function Board({list, v, now, current, onOpen, version}){
   /* карточка, сменившая место после решения, едет на новое место, а не перескакивает */
   useLayoutEffect(() => {
     const els = ref.current ? ref.current.querySelectorAll('[data-card]') : [];
-    const moved = lastVer.current !== version && Store.kind() === 'act'; lastVer.current = version;
+    const moved = lastVer.current !== null && lastVer.current !== version && Store.kind() === 'act'; lastVer.current = boardMem.ver = version;
     const next = new Map();
     els.forEach(el => {
       const r = el.getBoundingClientRect(), id = el.dataset.card, was = rects.current.get(id);
@@ -92,11 +95,11 @@ function Board({list, v, now, current, onOpen, version}){
           .then(() => { el.style.transform = ''; el.style.position = ''; el.style.zIndex = ''; }, () => {});
       }
     });
-    rects.current = next;
+    rects.current = boardMem.rects = next;
   });
   /* при прокрутке колонки и смене ширины окна места пересчитываются без анимации */
   useEffect(() => {
-    const re = () => { const m = new Map(); ref.current && ref.current.querySelectorAll('[data-card]').forEach(el => m.set(el.dataset.card, el.getBoundingClientRect())); rects.current = m; };
+    const re = () => { const m = new Map(); ref.current && ref.current.querySelectorAll('[data-card]').forEach(el => m.set(el.dataset.card, el.getBoundingClientRect())); rects.current = boardMem.rects = m; };
     addEventListener('resize', re); const s = ref.current; s && s.addEventListener('scroll', re, true);
     return () => { removeEventListener('resize', re); s && s.removeEventListener('scroll', re, true); };
   }, []);

@@ -310,7 +310,7 @@ function CandidatesTab({r, v, now}){
   </div>`;
 }
 
-function CandidateView({r, c, v, now, onBack}){
+function CandidateView({r, c, v, now}){
   const p = Model.perms(r, v), d = (type, x) => Store.dispatch(type, Object.assign({id:r.id, cid:c.id}, x));
   const [rej, setRej] = useState(false), [reason, setReason] = useState(''), [rc, setRc] = useState(''), [err, setErr] = useState('');
   const [offer, setOffer] = useState({salary:r.salary, start:toInput(r.start && r.start > now ? r.start : now + 14 * Model.D)});
@@ -348,49 +348,50 @@ function CandidateView({r, c, v, now, onBack}){
       {label:'Отказать', kind:'danger', ask:true, need:true, whom:'рекрутер', confirm:'Отказать кандидату', run:x => d('feedback', {verdict:'reject', comment:x})}]}/>
   </div>`;
 
-  return html`<div>
-    <div className="p-head">
-      <div className="p-bar">
-        <button className="btn btn-ghost" onClick=${onBack}><${Icon} n="back"/>Кандидаты<//>
-      </div>
-      <h2 className="p-title" tabIndex="-1" data-autofocus="true">${c.name}</h2>
-      <div className="p-sub">${c.position}</div>
-      <dl className="facts">
-        <div><dt>Этап</dt><dd>${stageName}</dd></div>
-        <div><dt>С какого числа</dt><dd className="num">${Model.fmtDate(c.stageAt)}</dd></div>
-        <div><dt>Источник</dt><dd>${c.source || '—'}</dd></div>
-      </dl>
-    </div>
-    <div className="p-body">
-      ${mgrDecide}
-      ${actions && html`<div style=${{marginBottom:20}}>${actions}</div>`}
-      ${open && editor && c.stage !== 'mgr' && !rej && html`<div className="row" style=${{marginTop:-8, marginBottom:20}}><${Btn} kind="ghost" onClick=${() => setRej(true)}>Отказать кандидату<//></div>`}
-      ${rej && html`<div className="now" style=${{marginTop:0, marginBottom:20}}>
-        <${Field} label="Причина отказа" error=${err && !reason ? err : ''}><select className="inp" value=${reason} onChange=${e => { setReason(e.target.value); setErr(''); }}>
-          <option value="">Выберите</option>${Model.REJECT.map(x => html`<option key=${x}>${x}</option>`)}</select><//>
-        <${Field} label="Комментарий" optional=${reason !== 'Другое'} error=${err && reason ? err : ''}><textarea className="inp" rows="2" value=${rc} onInput=${e => { setRc(e.target.value); setErr(''); }}/><//>
-        <div className="row"><${Btn} kind="danger" onClick=${doReject}>Отказать<//><${Btn} kind="ghost" onClick=${() => { setRej(false); setErr(''); }}>Отмена<//></div>
-      </div>`}
-      ${c.stage === 'rejected' && html`<div className="now" style=${{marginTop:0, marginBottom:20}}><div className="now-t">Отказ: ${c.reject.reason.toLowerCase()}</div>
-        <div className="now-m">${name(c.reject.by)}, ${Model.fmtDateTime(c.reject.at)}</div>${c.reject.comment && html`<blockquote className="now-q">${c.reject.comment}</blockquote>`}</div>`}
-
-      <section className="sec"><h3 className="sec-h">Контакты</h3>
-        <${Facts} rows=${[['Телефон', c.phone && html`<a href=${'tel:' + c.phone.replace(/\s/g, '')}>${c.phone}</a>`],
-          ['Telegram', c.tg && html`<a href=${'https://t.me/' + c.tg.replace('@', '')} target="_blank" rel="noopener">${c.tg}</a>`],
-          ['Почта', c.email && html`<a href=${'mailto:' + c.email}>${c.email}</a>`],
-          ['Резюме', c.resume && html`<a href=${c.resume} target="_blank" rel="noopener">Открыть</a>`]]}/>
+  const ckind = x => /одобрил$|согласил|Выбран|нанимаем/i.test(x.text) ? 'ok' : /отказ/i.test(x.text) ? 'stop' : 'ev';
+  const ctimeline = c.timeline.map((x, i) => ({at:x.at, title:x.text, who:x.by ? whoLine(x.by) : '', kind:i === 0 ? 'new' : ckind(x)}));
+  return html`<div className="page">
+    <div className="pg-main">
+      <section className="box">
+        <div className="box-h">
+          <div className="grow"><h1 className="p-title" tabIndex="-1" data-autofocus="true">${c.name}</h1>
+            ${c.position && html`<div className="p-sub">${c.position}</div>`}</div>
+          <span className=${'badge' + (c.stage === 'rejected' ? ' is-stop' : '')}>${stageName}</span>
+        </div>
+        ${mgrDecide}
+        ${actions && html`<div className="box-act">${actions}</div>`}
+        ${open && editor && c.stage !== 'mgr' && !rej && html`<div className="row" style=${{marginTop:12}}><${Btn} kind="ghost" className="btn-flush" onClick=${() => setRej(true)}>Отказать кандидату<//></div>`}
+        ${rej && html`<div className="now">
+          <${Field} label="Причина отказа" error=${err && !reason ? err : ''}><select className="inp" value=${reason} onChange=${e => { setReason(e.target.value); setErr(''); }}>
+            <option value="">Выберите</option>${Model.REJECT.map(x => html`<option key=${x}>${x}</option>`)}</select><//>
+          <${Field} label="Комментарий" optional=${reason !== 'Другое'} error=${err && reason ? err : ''}><textarea className="inp" rows="2" value=${rc} onInput=${e => { setRc(e.target.value); setErr(''); }}/><//>
+          <div className="row"><${Btn} kind="danger" onClick=${doReject}>Отказать<//><${Btn} kind="ghost" onClick=${() => { setRej(false); setErr(''); }}>Отмена<//></div>
+        </div>`}
+        ${c.stage === 'rejected' && html`<div className="now"><div className="now-t">Отказ: ${c.reject.reason.toLowerCase()}</div>
+          <div className="now-m">${name(c.reject.by)}, ${Model.fmtDateTime(c.reject.at)}</div>${c.reject.comment && html`<blockquote className="now-q">${c.reject.comment}</blockquote>`}</div>`}
       </section>
-      <section className="sec"><h3 className="sec-h">О кандидате</h3>
-        <${Facts} rows=${[['Сейчас', c.position], ['Опыт', c.experience], ['Ожидания', c.expect], ['Комментарий рекрутера', c.comment]]}/>
-      </section>
-      ${c.feedback.length > 0 && html`<section className="sec"><h3 className="sec-h">Ответ руководителя</h3>
-        ${c.feedback.map((f, i) => html`<div key=${i} style=${{marginBottom:8}}><div>${f.verdict === 'approve' ? 'Одобрил' : 'Отказал'} — ${name(f.by)}, ${Model.fmtDate(f.at)}</div>${f.comment && html`<blockquote className="step-q">${f.comment}</blockquote>`}</div>`)}
-      </section>`}
-      <${Files} files=${c.files} can=${editor} onAdd=${fs => Store.dispatch('addFiles', {id:r.id, cid:c.id, files:fs})}/>
-      <section className="sec"><h3 className="sec-h">История</h3>
-        <ol className="timeline">${c.timeline.slice().reverse().map((x, i) => html`<li key=${i}><time className="num">${Model.fmtDateTime(x.at)}</time><span>${x.text}</span></li>`)}</ol>
+      <section className="box">
+        <section className="sec"><h2 className="sec-h">Контакты</h2>
+          <${Facts} rows=${[['Телефон', c.phone && html`<a href=${'tel:' + c.phone.replace(/\s/g, '')}>${c.phone}</a>`],
+            ['Telegram', c.tg && html`<a href=${'https://t.me/' + c.tg.replace('@', '')} target="_blank" rel="noopener">${c.tg}</a>`],
+            ['Почта', c.email && html`<a href=${'mailto:' + c.email}>${c.email}</a>`],
+            ['Резюме', c.resume && html`<a href=${c.resume} target="_blank" rel="noopener">Открыть</a>`]]}/>
+        </section>
+        ${[c.position, c.experience, c.expect, c.comment].some(Boolean) && html`<section className="sec"><h2 className="sec-h">О кандидате</h2>
+          <${Facts} rows=${[['Сейчас', c.position], ['Опыт', c.experience], ['Ожидания', c.expect], ['Комментарий рекрутера', c.comment]]}/>
+        </section>`}
+        ${c.feedback.length > 0 && html`<section className="sec"><h2 className="sec-h">Ответ руководителя</h2>
+          ${c.feedback.map((f, i) => html`<div key=${i} style=${{marginBottom:8}}><div>${f.verdict === 'approve' ? 'Одобрил' : 'Отказал'}: ${name(f.by)}, ${Model.fmtDate(f.at)}</div>${f.comment && html`<blockquote className="step-q">${f.comment}</blockquote>`}</div>`)}
+        </section>`}
+        <${Files} files=${c.files} can=${editor} onAdd=${fs => Store.dispatch('addFiles', {id:r.id, cid:c.id, files:fs})}/>
       </section>
     </div>
+    <aside className="pg-side">
+      <section className="box"><h2 className="box-t">История</h2><${Timeline} items=${ctimeline}/></section>
+      <section className="box"><h2 className="box-t">Информация</h2>
+        <${Info} rows=${[['Вакансия', r.title], ['Этап', stageName], ['На этапе с', Model.fmtDate(c.stageAt, true)], ['Источник', c.source], ['Добавлен', c.timeline[0] && Model.fmtDate(c.timeline[0].at, true)]]}/>
+      </section>
+    </aside>
   </div>`;
 }
 
@@ -425,13 +426,10 @@ function AddCandidate({r, onDone, onCancel, guard}){
     const cid = Store.dispatch('addCandidate', {id:r.id, fields:Object.fromEntries(Object.entries(f).map(([k, x]) => [k, x.trim()]))});
     onDone(cid);
   };
-  return html`<div>
-    <div className="p-head">
-      <div className="p-bar"><button className="btn btn-ghost" onClick=${onCancel}><${Icon} n="back"/>Кандидаты<//></div>
-      <h2 className="p-title" tabIndex="-1" data-autofocus="true">Новый кандидат</h2>
-      <div className="p-sub">${r.title}</div>
-    </div>
-    <div className="p-body">
+  return html`<div className="page is-narrow">
+    <section className="box">
+      <h1 className="p-title" tabIndex="-1" data-autofocus="true">Новый кандидат</h1>
+      <div className="p-sub" style=${{marginBottom:20}}>${r.title}</div>
       <${Field} id="ac-name" label="ФИО" error=${err.name}><input className="inp" value=${f.name} onInput=${set('name')} autoComplete="off"/><//>
       <div className="grid2">
         <${Field} id="ac-phone" label="Телефон" error=${err.contact}><input className="inp" type="tel" value=${f.phone} onInput=${set('phone')} placeholder="+7"/><//>
@@ -447,7 +445,7 @@ function AddCandidate({r, onDone, onCancel, guard}){
       <${Field} label="Зарплатные ожидания" optional=${true}><input className="inp" value=${f.expect} onInput=${set('expect')}/><//>
       <${Field} label="Комментарий" optional=${true}><textarea className="inp" rows="3" value=${f.comment} onInput=${set('comment')}/><//>
       <div className="row"><${Btn} kind="primary" onClick=${send}>Добавить кандидата<//><${Btn} kind="ghost" onClick=${onCancel}>Отмена<//></div>
-    </div>
+    </section>
   </div>`;
 }
 
@@ -468,12 +466,33 @@ function InfoTab({r, v}){
   </div>`;
 }
 
-function HistoryTab({r}){
-  return html`<table className="hist">
-    <thead><tr><th>Когда</th><th>Кто</th><th>Действие</th></tr></thead>
-    <tbody>${r.log.slice().reverse().map((l, i) => html`<tr key=${i}><td>${Model.fmtDateTime(l.at)}</td><td>${name(l.by)}</td>
-      <td>${l.text}${l.comment && html`<div className="c">${l.comment}</div>`}</td></tr>`)}</tbody>
-  </table>`;
+/* лента событий справа: что было, кто и когда. Длинная история свёрнута до последних событий */
+const TL_ICON = {new:'doc', ok:'ok', stop:'no', ret:'ret', ev:'ev'};
+const whoLine = id => { const p = Model.PEOPLE[id]; return p ? p.name + ', ' + (p.role === 'manager' ? 'руководитель' : p.role === 'recruiter' ? 'рекрутер' : Model.ROLE[p.role]) : ''; };
+function logKind(l){
+  if(l.step === 'created') return 'new';
+  if(l.step === 'reject' || l.step === 'cancel' || /^Отказал|^Не продолжаем/.test(l.text)) return 'stop';
+  if(l.step === 'return') return 'ret';
+  if(['hr','finance','ceo','feedback','accepted','registered','finaccept','fot','closed'].includes(l.step) || /нанимаем/.test(l.text)) return 'ok';
+  return 'ev';
+}
+function Timeline({items, limit = 8}){
+  const [all, setAll] = useState(false);
+  const hidden = !all && items.length > limit ? items.length - limit + 1 : 0;
+  return html`<div className="tl-wrap">
+    ${hidden > 0 && html`<button className="tl-more" onClick=${() => setAll(true)}>Ещё ${hidden} ${Model.plural(hidden, 'событие', 'события', 'событий')} раньше</button>`}
+    <ol className="tl">${items.slice(hidden).map((x, i) => html`<li key=${i}>
+      <span className=${'tl-i is-' + x.kind}><${Icon} n=${TL_ICON[x.kind]} s=${20}/></span>
+      <div className="tl-b">
+        <div className="tl-top"><span className="tl-t">${x.title}</span><time className="tl-d num">${Model.fmtDateTime(x.at)}</time></div>
+        ${x.who && html`<div className="tl-w">${x.who}</div>`}
+        ${x.comment && html`<blockquote className="tl-c">${x.comment}</blockquote>`}
+      </div>
+    </li>`)}</ol>
+  </div>`;
+}
+function Info({rows}){
+  return html`<dl className="info">${rows.filter(x => x[1]).map(([k, val]) => html`<div key=${k}><dt>${k}</dt><dd>${val}</dd></div>`)}</dl>`;
 }
 
 /* ---------- отмена заявки ---------- */
@@ -497,76 +516,85 @@ function CancelForm({r, onDone}){
   </div>`;
 }
 
-/* ---------- панель целиком ---------- */
-function RequestPanel({r, view, cid, onClose}){
+/* ---------- страница заявки: слева заявка и ваш ход, справа история и сведения ---------- */
+function RequestPage({r, view, cid}){
   const v = useViewer(), now = useNow();
   const [tab, setTabState] = useState('path'), [focus, setFocus] = useState(null), [cancel, setCancel] = useState(false);
   const p = Model.perms(r, v), more = useMenu(), guard = useRef(false);
   const [ask, setAsk] = useState(null);
-  const body = useRef(null);
-  const setTab = (t, f) => { setTabState(t); setFocus(f || null); if(body.current && !f) body.current.scrollTop = 0; };
+  const tabsRef = useRef(null);
+  const setTab = (t, f) => { setTabState(t); setFocus(f || null); if(!f && tabsRef.current && tabsRef.current.getBoundingClientRect().top < 0) tabsRef.current.scrollIntoView({block:'start'}); };
   useEffect(() => { setTabState(Model.phase(r) === 'search' && p.candidates && r.manager === v ? 'candidates' : 'path'); setCancel(false); setFocus(null); }, [r.id, v]);
   useEffect(() => { if(!p.candidates && tab === 'candidates') setTabState('path'); }, [v]);
 
   const showCands = p.candidates && !['draft','hr','returned','finance','ceo','assign','assigned'].includes(r.status) && r.status !== 'rejected';
   const turns = Model.turns(r), mine = turns.filter(t => Model.mineTurn(t, v)), others = turns.filter(t => !Model.mineTurn(t, v) && !t.passive);
 
-  const content = useRef(null), prevView = useRef(view);
-  useLayoutEffect(() => { if(prevView.current !== view){ Anim.push(content.current, view === 'main' ? 'back' : 'fwd'); prevView.current = view; } const f = content.current && content.current.querySelector('[data-autofocus]'); if(f) f.focus({preventScroll:true}); }, [view, cid]);
-
   const leave = then => { if(guard.current){ setAsk(() => then); return; } then(); };
   useEffect(() => { Panel.leave = leave; });
+  useEffect(() => () => { Panel.leave = f => f(); }, []);
 
   if(view === 'cand' || view === 'add'){
     const c = r.candidates.find(x => x.id === cid);
-    return html`<div className="p-scroll" ref=${content}>
-      ${view === 'add' ? html`<${AddCandidate} r=${r} guard=${guard} onCancel=${() => leave(() => { guard.current = false; go('#/r/' + r.id); })} onDone=${id => go('#/r/' + r.id + '/c/' + id)}/>`
-        : c ? html`<${CandidateView} r=${r} c=${c} v=${v} now=${now} onBack=${() => { setTabState('candidates'); go('#/r/' + r.id); }}/>` : html`<div className="p-body">Кандидат не найден</div>`}
-    </div>
-    ${ask && html`<div className="guard" role="alert"><span>Кандидат не добавлен. Выйти без сохранения?</span>
-      <${Btn} kind="danger" onClick=${() => { const f = ask; setAsk(null); guard.current = false; f(); }}>Выйти<//><${Btn} kind="ghost" onClick=${() => setAsk(null)}>Остаться<//></div>`}`;
+    return html`<div>
+      ${view === 'add' ? html`<${AddCandidate} r=${r} guard=${guard} onCancel=${() => leave(() => { guard.current = false; go('#/r/' + r.id); })} onDone=${id => { guard.current = false; go('#/r/' + r.id + '/c/' + id); }}/>`
+        : c ? html`<${CandidateView} r=${r} c=${c} v=${v} now=${now}/>` : html`<div className="page is-narrow"><section className="box"><h1 className="p-title" tabIndex="-1" data-autofocus="true">Кандидат не найден</h1></section></div>`}
+      ${ask && html`<div className="guard" role="alert"><span>Кандидат не добавлен. Выйти без сохранения?</span>
+        <${Btn} kind="danger" onClick=${() => { const f = ask; setAsk(null); guard.current = false; f(); }}>Выйти<//><${Btn} kind="ghost" onClick=${() => setAsk(null)}>Остаться<//></div>`}
+    </div>`;
   }
 
-  const hires = Model.activeHires(r);
-  const tabs = [['path','Путь'], showCands && ['candidates','Кандидаты', r.candidates.filter(c => c.stage !== 'rejected').length], p.request && ['info','Заявка'], p.history && ['history','История']].filter(Boolean);
-  return html`<div className="p-scroll" ref=${node => { content.current = node; body.current = node; }}>
-    <div className="p-head">
-      <div className="p-bar">
-        <span className="grow"/>
-        ${p.cancel && html`<div style=${{position:'relative'}}>
-          <button className="icon-btn" ref=${more.btn} aria-label="Ещё" aria-haspopup="menu" aria-expanded=${more.open} onClick=${() => more.setOpen(!more.open)}><${Icon} n="more"/></button>
-          ${more.open && html`<div className="menu" role="menu" ref=${more.box} onKeyDown=${more.onMenuKey} style=${{right:0, top:38}}>
-            <button className="menu-item" role="menuitem" style=${{color:'var(--red)'}} onClick=${() => { more.setOpen(false); setCancel(true); }}>Отменить заявку</button>
+  const hires = Model.activeHires(r), ph = Model.phase(r), stopped = r.status === 'rejected' || r.status === 'cancelled';
+  const tabs = [['path','Путь'], showCands && ['candidates','Кандидаты', r.candidates.filter(c => c.stage !== 'rejected').length], p.request && ['info','Заявка']].filter(Boolean);
+  const late = r.deadline && r.deadline < now && ph !== 'closed';
+  const log = r.log.filter(l => !/^(Отметил|Снял отметку):/.test(l.text)).map(l => ({at:l.at, title:l.text, who:whoLine(l.by), comment:l.comment, kind:logKind(l)}));
+  return html`<div className="page">
+    <div className="pg-main">
+      <section className="box">
+        <div className="box-h">
+          <div className="grow">
+            <h1 className="p-title" tabIndex="-1" data-autofocus="true">${r.title}${r.seats > 1 && html`<small className="num">× ${r.seats}</small>`}</h1>
+            <div className="p-sub">${r.dept} / ${r.project}</div>
+          </div>
+          <span className=${'badge' + (stopped ? ' is-stop' : '')}>${Model.statusText(r)}</span>
+          ${p.cancel && html`<div style=${{position:'relative'}}>
+            <button className="icon-btn" ref=${more.btn} aria-label="Ещё" aria-haspopup="menu" aria-expanded=${more.open} onClick=${() => more.setOpen(!more.open)}><${Icon} n="more"/></button>
+            ${more.open && html`<div className="menu" role="menu" ref=${more.box} onKeyDown=${more.onMenuKey} style=${{right:0, top:38}}>
+              <button className="menu-item" role="menuitem" style=${{color:'var(--red)'}} onClick=${() => { more.setOpen(false); setCancel(true); }}>Отменить заявку</button>
+            </div>`}
           </div>`}
-        </div>`}
-        <button className="icon-btn" aria-label="Закрыть" onClick=${onClose}><${Icon} n="x" s=${18}/></button>
-      </div>
-      <h2 className="p-title" tabIndex="-1" data-autofocus="true">${r.title}${r.seats > 1 && html`<small className="num">× ${r.seats}</small>`}</h2>
-      <div className="p-sub">${r.dept} / ${r.project}</div>
-      <dl className="facts">
-        <div><dt>Статус</dt><dd>${Model.statusText(r)}</dd></div>
-        <div><dt>Руководитель</dt><dd>${name(r.manager)}</dd></div>
-        <div><dt>Рекрутер</dt><dd>${r.recruiter ? name(r.recruiter) : html`<span className="muted">не назначен</span>`}</dd></div>
-        <div><dt>Создана</dt><dd className="num">${Model.fmtDate(r.created, true)}</dd></div>
-        <div><dt>Желаемый выход</dt><dd className="num">${Model.fmtDate(r.start, true) || '—'}</dd></div>
-        ${r.deadline && html`<div><dt>Срок закрытия</dt><dd className=${'num' + (r.deadline < now && Model.phase(r) !== 'closed' ? ' late' : '')}>${r.deadline < now && Model.phase(r) !== 'closed' ? html`<${Icon} n="late" s=${14} label="Срок прошёл"/> ` : ''}${Model.fmtDate(r.deadline, true)}</dd></div>`}
-      </dl>
-      ${cancel && html`<${CancelForm} r=${r} onDone=${() => setCancel(false)}/>`}
-      ${!cancel && mine.map((t, i) => html`<${MyTurn} key=${'m' + i + (t.h || '') + r.status} r=${r} t=${t} now=${now} setTab=${setTab}/>`)}
-      ${!cancel && others.map((t, i) => html`<${Waiting} key=${'o' + i} t=${t} now=${now}/>`)}
-      ${!cancel && r.seats > 1 && hires.length > 0 && hires.length < r.seats && html`<div className="now-m" style=${{marginTop:10}}>Выбрано ${hires.length} из ${r.seats}, подбор продолжается</div>`}
+        </div>
+        ${cancel && html`<${CancelForm} r=${r} onDone=${() => setCancel(false)}/>`}
+        ${!cancel && mine.map((t, i) => html`<${MyTurn} key=${'m' + i + (t.h || '') + r.status} r=${r} t=${t} now=${now} setTab=${setTab}/>`)}
+        ${!cancel && others.map((t, i) => html`<${Waiting} key=${'o' + i} t=${t} now=${now}/>`)}
+        ${!cancel && r.seats > 1 && hires.length > 0 && hires.length < r.seats && html`<div className="now-m" style=${{marginTop:10}}>Выбрано ${hires.length} из ${r.seats}, подбор продолжается</div>`}
+      </section>
+      <section className="box">
+        <div className="pills" role="tablist" aria-label="Разделы заявки" ref=${tabsRef}>
+          ${tabs.map(([k, t, n]) => html`<button key=${k} role="tab" className="tab" id=${'tab-' + k} aria-selected=${tab === k} aria-controls="tabpanel"
+            onClick=${() => setTab(k)} onKeyDown=${e => { if(e.key === 'ArrowRight' || e.key === 'ArrowLeft'){ const i = tabs.findIndex(x => x[0] === tab), j = (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length; setTab(tabs[j][0]); requestAnimationFrame(() => document.getElementById('tab-' + tabs[j][0]).focus()); } }}
+            tabIndex=${tab === k ? 0 : -1}>${t}${n ? html`<span className="n num">${n}</span>` : null}</button>`)}
+        </div>
+        <div className="tab-body" role="tabpanel" id="tabpanel" aria-labelledby=${'tab-' + tab}>
+          ${tab === 'path' && html`<${PathTab} r=${r} v=${v} now=${now} focus=${focus}/>`}
+          ${tab === 'candidates' && html`<${CandidatesTab} r=${r} v=${v} now=${now}/>`}
+          ${tab === 'info' && html`<${InfoTab} r=${r} v=${v}/>`}
+        </div>
+      </section>
     </div>
-    <div className="tabs" role="tablist" aria-label="Разделы заявки">
-      ${tabs.map(([k, t, n]) => html`<button key=${k} role="tab" className="tab" id=${'tab-' + k} aria-selected=${tab === k} aria-controls="tabpanel"
-        onClick=${() => setTab(k)} onKeyDown=${e => { if(e.key === 'ArrowRight' || e.key === 'ArrowLeft'){ const i = tabs.findIndex(x => x[0] === tab), j = (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length; setTab(tabs[j][0]); requestAnimationFrame(() => document.getElementById('tab-' + tabs[j][0]).focus()); } }}
-        tabIndex=${tab === k ? 0 : -1}>${t}${n ? html`<span className="n">${n}</span>` : null}</button>`)}
-    </div>
-    <div className="p-body" role="tabpanel" id="tabpanel" aria-labelledby=${'tab-' + tab}>
-      ${tab === 'path' && html`<${PathTab} r=${r} v=${v} now=${now} focus=${focus}/>`}
-      ${tab === 'candidates' && html`<${CandidatesTab} r=${r} v=${v} now=${now}/>`}
-      ${tab === 'info' && html`<${InfoTab} r=${r} v=${v}/>`}
-      ${tab === 'history' && html`<${HistoryTab} r=${r}/>`}
-    </div>
+    <aside className="pg-side">
+      ${p.history && html`<section className="box"><h2 className="box-t">История</h2><${Timeline} key=${r.id} items=${log}/></section>`}
+      <section className="box"><h2 className="box-t">Информация</h2>
+        <${Info} rows=${[
+          ['Руководитель', name(r.manager)],
+          ['Рекрутер', r.recruiter ? name(r.recruiter) : html`<span className="muted">не назначен</span>`],
+          ['Создана', Model.fmtDate(r.created, true)],
+          ['Желаемый выход', Model.fmtDate(r.start, true)],
+          ['Срок закрытия', r.deadline && html`<span className=${'num' + (late ? ' late' : '')}>${late ? html`<${Icon} n="late" s=${14} label="Срок прошёл"/> ` : ''}${Model.fmtDate(r.deadline, true)}</span>`],
+          ['Зарплата', p.salary && r.salary],
+          ['Последнее изменение', Model.fmtDate(r.updated, true)]]}/>
+      </section>
+    </aside>
   </div>`;
 }
 const Panel = {leave:f => f()};

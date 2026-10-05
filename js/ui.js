@@ -23,6 +23,16 @@ const ICONS = {
   check:'M5 10.5l3.2 3L15 6.5',
   plus:'M10 4v12M4 10h12',
   more:'M5 10h.01M10 10h.01M15 10h.01',
+  side:'M3.5 5.5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2zM8 3.5v13',
+  chev:'M8 5l5 5-5 5',
+  user:'M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4.5 16.5c.8-2.6 2.9-4 5.5-4s4.7 1.4 5.5 4',
+  funnel:'M3.5 4.5h13l-5 6v4.5l-3 1.5v-6z',
+  board:'M3.5 4h3.5v12H3.5zM8.25 4h3.5v8h-3.5zM13 4h3.5v10H13z',
+  doc:'M11.5 2.5H6A1.5 1.5 0 0 0 4.5 4v12A1.5 1.5 0 0 0 6 17.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5zM11.5 2.5v4h4M7.5 10.5h5M7.5 13.5h5',
+  ok:'M10 17.5a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15zM6.8 10.2l2.2 2.2 4.2-4.6',
+  no:'M10 17.5a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15zM7.6 7.6l4.8 4.8M12.4 7.6l-4.8 4.8',
+  ret:'M10 17.5a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15zM10.5 7 7.5 10l3 3M7.8 10h5',
+  ev:'M10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
   clip:'M14.5 9.5 9.6 14.4a3 3 0 0 1-4.2-4.2l5.6-5.6a2 2 0 0 1 2.8 2.8l-5.4 5.4a1 1 0 0 1-1.4-1.4l4.8-4.8'
 };
 function Icon({n, s = 16, w = 1.6, label}){
@@ -91,6 +101,11 @@ const Anim = {
     if(!Anim.on() || !el) return Promise.resolve();
     if(scrim) Motion.animate(scrim, {opacity:[1,0]}, {duration:.16});
     return Motion.animate(el, {transform:['translateX(0px)','translateX(56px)'], opacity:[1,0]}, {duration:.16, ease:[.4,0,1,1]}).then(() => {}, () => {});
+  },
+  page(el){
+    if(!Anim.on() || !el) return;
+    Motion.animate(el, {opacity:[0,1], transform:['translateY(6px)','translateY(0px)']}, {type:'spring', visualDuration:.28, bounce:0, opacity:{duration:.14}})
+      .then(() => { el.style.transform = ''; }, () => {});
   },
   push(el, dir){
     if(!Anim.on() || !el) return;
