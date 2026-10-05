@@ -253,6 +253,14 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 .box.is-fold .fold{min-height:24px}
 .fold-b{display:flex;flex-direction:column;gap:28px;margin-top:20px}
 .sub-t{margin:0 0 14px;font-size:14.5px;font-weight:600;color:var(--ink)}
+.fold-s.ok{color:var(--green)}
+/* сейчас: чей ход, если не ваш */
+.nowb{padding:14px 18px;border-radius:var(--r-box);background:var(--lane)}
+.nowb-h{margin-bottom:6px;font-size:13.5px;color:var(--ink-3)}
+.nowb-r{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 16px;padding:3px 0}
+.nowb-t{font-weight:600}
+.nowb-p{color:var(--ink-2)}
+.add-c{border-color:var(--ink-3)}
 .note{padding:14px 16px;border-radius:var(--r-box);background:var(--lane)}
 .note-t{font-weight:600}
 .note-q{margin:6px 0 0;white-space:pre-wrap}

@@ -92,13 +92,14 @@ function stripRows(r){
     return [{key:'c', steps}];
   }
   const rows = [], many = r.seats > 1;
-  if(Model.activeHires(r).length < r.seats) rows.push({key:'s', steps:searchSteps(r)});
+  const left = r.seats - Model.activeHires(r).length;
+  if(left > 0) rows.push({key:'s', name:many && Model.activeHires(r).length ? 'Ищем ещё ' + left : null, steps:searchSteps(r)});
   const hs = st === 'closed' ? r.hires.filter(h => h.stage === 'done') : Model.openHires(r);
   hs.forEach(h => rows.push({key:h.id, name:many ? Model.short(h.name) : null, steps:hireSteps(h)}));
   return rows.length ? rows : [{key:'s', steps:searchSteps(r)}];
 }
 
-const C_STEPS = [['new','Новый'], ['hr','Интервью HR'], ['test','Тестовое'], ['mgr','Руководитель'], ['offer','Оффер'], ['accepted','Согласился']];
+const C_STEPS = [['hr','Интервью HR'], ['test','Тестовое'], ['mgr','Руководитель'], ['offer','Оффер'], ['accepted','Согласился']];
 function candSteps(c){
   const rej = c.stage === 'rejected', at = rej ? c.reject.from : c.stage === 'approved' ? 'offer' : c.stage;
   let pos = C_STEPS.findIndex(x => x[0] === at);
@@ -174,7 +175,13 @@ function Checklist({r, h, list, v, who}){
   const groups = WHO_ORDER.filter(w => items.some(i => i.who === w)).map(w => ({w, items:items.filter(i => i.who === w)}));
   const ready = groups.filter(g => g.items.every(i => i.done)).length;
   const set = (w, done) => Store.dispatch('checkGroup', {id:r.id, hid:h.id, list, who:w, done});
-  return html`<${Box} title=${Model.LISTS[list].name + (who ? ': ' + who : '')} aside=${html`<span className="box-n num">${ready} из ${groups.length} готово</span>`}>
+  const all = ready === groups.length, [open, setOpen] = useState(!all);
+  useEffect(() => { if(all) setOpen(false); }, [all]);
+  const title = Model.LISTS[list].name + (who ? ': ' + who : '');
+  if(all && !open) return html`<section className="box is-fold"><h3 className="box-t"><button className="fold" aria-expanded="false" onClick=${() => setOpen(true)}>
+    <span>${title}</span><span className="fold-s ok">Все отметили</span><span className="fold-i" aria-hidden="true"><${Icon} n="down" s=${16}/></span></button></h3></section>`;
+  return html`<${Box} title=${all ? html`<button className="fold" aria-expanded="true" onClick=${() => setOpen(false)}><span>${title}</span><span className="fold-s ok">Все отметили</span><span className="fold-i" aria-hidden="true"><${Icon} n="down" s=${16}/></span></button>` : title}
+    aside=${!all && html`<span className="box-n num">${ready} из ${groups.length} готово</span>`}>
     <div className="clg-all">${groups.map(({w, items:its}) => {
       const done = its.every(i => i.done), can = Model.canCheck(its[0], r, v);
       const last = done && its.map(i => i.done).sort((a, b) => b.at - a.at)[0];
@@ -296,7 +303,9 @@ function CancelForm({r, onDone}){
 function CandActions({r, c, v, now, small}){
   const p = Model.perms(r, v), d = (type, x) => Store.dispatch(type, Object.assign({id:r.id, cid:c.id}, x));
   const [rej, setRej] = useState(false), [reason, setReason] = useState(''), [rc, setRc] = useState(''), [err, setErr] = useState('');
-  const [start, setStart] = useState(toInput(c.offer ? c.offer.start : r.start));
+  const [start, setStart] = useState(toInput(c.offer ? c.offer.start : r.start)), [pay, setPay] = useState('');
+  /* в заявке вилка — точный оклад спрашиваем, когда кандидат согласился: его получит Finance */
+  const range = Model.isRange(r.salary);
   useEffect(() => { setRej(false); setErr(''); }, [c.stage]);
   const editor = p.editCandidates, manager = r.manager === v, open = c.stage !== 'rejected' && c.stage !== 'accepted';
   const doReject = () => {
@@ -317,18 +326,16 @@ function CandActions({r, c, v, now, small}){
   const actions = [];
   let fields = null;
   if(open && editor){
-    if(c.stage === 'new') actions.push({label:'Пригласить на интервью', kind:'primary', run:() => d('move', {to:'hr'})});
-    if(c.stage === 'hr') actions.push({label:'Руководителю на решение', kind:'primary', run:() => d('move', {to:'mgr'})}, {label:'Дать тестовое задание', run:() => d('move', {to:'test'})});
-    if(c.stage === 'test'){
-      actions.push({label:'Руководителю на решение', kind:'primary', run:() => d('move', {to:'mgr'})});
-      if(!c.timeline.some(x => x.text === 'Тестовое получено')) actions.push({label:'Тестовое сдано', run:() => d('note', {text:'Тестовое получено'})});
-    }
+    if(c.stage === 'hr' || c.stage === 'new') actions.push({label:'Руководителю на решение', kind:'primary', run:() => d('move', {to:'mgr'})}, {label:'Дать тестовое задание', run:() => d('move', {to:'test'})});
+    if(c.stage === 'test') actions.push({label:'Руководителю на решение', kind:'primary', run:() => d('move', {to:'mgr'})});
     /* оклад согласован в заявке, отдельно его не вводят */
     if(c.stage === 'approved') actions.push({label:'Оффер отправлен', kind:'primary', run:() => d('offer', {salary:r.salary, start:r.start})});
     if(c.stage === 'offer'){
       /* дату выхода спрашиваем один раз — когда кандидат согласился: от неё считается подготовка, её получает Finance */
-      fields = html`<div className="grid2 c-fields"><${Field} label="Дата выхода"><input className="inp" type="date" value=${start} onInput=${e => setStart(e.target.value)}/><//></div>`;
-      actions.push({label:'Согласился', kind:'primary', run:() => d('accepted', {start:fromInput(start)})},
+      fields = html`<div className="grid2 c-fields">
+        ${range && html`<${Field} label=${'Оклад (в заявке ' + r.salary + ')'} error=${err && !rej ? err : ''}><input className="inp" value=${pay} onInput=${e => { setPay(e.target.value); setErr(''); }}/><//>`}
+        <${Field} label="Дата выхода"><input className="inp" type="date" value=${start} onInput=${e => setStart(e.target.value)}/><//></div>`;
+      actions.push({label:'Согласился', kind:'primary', run:() => { if(range && !pay.trim()){ setErr('Укажите оклад, о котором договорились'); return; } d('accepted', {start:fromInput(start), salary:range ? pay.trim() : ''}); }},
         {label:'Отказался', kind:'danger', run:() => d('reject', {reason:'Отказался сам', comment:'Отказался от оффера'})});
     }
   }
@@ -342,7 +349,7 @@ function CandActions({r, c, v, now, small}){
 }
 
 /* ---------- кандидаты: карточки по этапам, всё видно без перехода ---------- */
-const C_GROUPS = [['accepted','Выбраны'], ['mgr','У руководителя'], ['approved','Одобрены, ждут оффер'], ['offer','Оффер отправлен'], ['test','Тестовое'], ['hr','Интервью HR'], ['new','Новые']];
+const C_GROUPS = [['accepted','Выбраны'], ['mgr','У руководителя'], ['approved','Одобрены, ждут оффер'], ['offer','Оффер отправлен'], ['test','Тестовое'], ['hr','Интервью HR']];
 function CandCard({r, c, v, now}){
   const h = r.hires.find(x => x.cid === c.id);
   const contacts = [
@@ -368,14 +375,15 @@ function CandCard({r, c, v, now}){
     <${CandActions} r=${r} c=${c} v=${v} now=${now} small=${true}/>
   </article>`;
 }
-function Candidates({r, v, now, onAdd}){
-  const manager = r.manager === v, [showRej, setShowRej] = useState(false);
+function Candidates({r, v, now, canAdd, guard}){
+  const manager = r.manager === v, [showRej, setShowRej] = useState(false), [adding, setAdding] = useState(false);
   const live = r.candidates.filter(c => c.stage !== 'rejected'), rej = r.candidates.filter(c => c.stage === 'rejected');
-  const groups = C_GROUPS.map(([k, t]) => [k, k === 'mgr' && manager ? 'Ждут вашего ответа' : t, live.filter(c => c.stage === k).sort((a, b) => b.stageAt - a.stageAt)]).filter(g => g[2].length);
+  const groups = C_GROUPS.map(([k, t]) => [k, k === 'mgr' && manager ? 'Ждут вашего ответа' : t, live.filter(c => c.stage === k || (k === 'hr' && c.stage === 'new')).sort((a, b) => b.stageAt - a.stageAt)]).filter(g => g[2].length);
   return html`<section className="cands">
     <div className="cands-h"><h3 className="box-t">Кандидаты <span className="muted num">${live.length}</span></h3>
-      ${onAdd && html`<${Btn} onClick=${onAdd}><${Icon} n="plus" s=${15}/>Добавить кандидата<//>`}</div>
-    ${!live.length && html`<p className="muted" style=${{margin:0}}>Кандидатов пока нет</p>`}
+      ${canAdd && !adding && html`<${Btn} onClick=${() => setAdding(true)}><${Icon} n="plus" s=${15}/>Добавить кандидата<//>`}</div>
+    ${adding && html`<${AddCandidate} r=${r} guard=${guard} onCancel=${() => { guard.current = false; setAdding(false); }} onDone=${() => { guard.current = false; setAdding(false); }}/>`}
+    ${!live.length && !adding && html`<p className="muted" style=${{margin:0}}>Кандидатов пока нет</p>`}
     ${groups.map(([k, t, list]) => html`<div className="cg" key=${k}>
       <h4 className=${'cg-t' + (k === 'mgr' && manager ? ' is-mine' : '')}>${t} <span className="num">${list.length}</span></h4>
       ${list.map(c => html`<${CandCard} key=${c.id} r=${r} c=${c} v=${v} now=${now}/>`)}
@@ -426,6 +434,21 @@ function Side({info, history}){
   </aside>`;
 }
 
+function Redirect({to}){ useEffect(() => { location.replace(to); }, []); return null; }
+
+/* ---------- сейчас: чей ход, если не ваш. Без «сколько ждёт» — только кто и что делает, и срок, если он есть ---------- */
+function NowBox({r, turns}){
+  if(!turns.length) return null;
+  const many = r.seats > 1;
+  return html`<div className="nowb">
+    <div className="nowb-h">Сейчас</div>
+    ${turns.map((t, i) => html`<div className="nowb-r" key=${i}>
+      <span className="nowb-t">${t.full || t.text}${many && t.hn ? ': ' + t.hn : ''}</span>
+      <span className="nowb-p">${name(t.p)}${t.due ? html`<span className="num">, до ${Model.fmtDate(t.due)}</span>` : ''}</span>
+    </div>`)}
+  </div>`;
+}
+
 /* ---------- окно заявки ---------- */
 function RequestPage({r, view, cid}){
   const v = useViewer(), now = useNow();
@@ -440,7 +463,7 @@ function RequestPage({r, view, cid}){
   if(view === 'cand' || view === 'add'){
     const c = r.candidates.find(x => x.id === cid);
     return html`<div>
-      ${view === 'add' ? html`<${AddCandidate} r=${r} guard=${guard} onCancel=${() => leave(() => { guard.current = false; go('#/r/' + r.id); })} onDone=${id => { guard.current = false; go('#/r/' + r.id + '/c/' + id); }}/>`
+      ${view === 'add' ? html`<${Redirect} to=${'#/r/' + r.id}/>`
         : c ? html`<${CandidateView} r=${r} c=${c} v=${v} now=${now}/>` : html`<div className="mpage"><${ModalHead} title="Кандидат не найден" sub=${html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`}/></div>`}
       ${ask && html`<div className="guard" role="alert"><span>Кандидат не добавлен. Выйти без сохранения?</span>
         <${Btn} kind="danger" onClick=${() => { const f = ask; setAsk(null); guard.current = false; f(); }}>Выйти<//><${Btn} kind="ghost" onClick=${() => setAsk(null)}>Остаться<//></div>`}
@@ -481,8 +504,9 @@ function RequestPage({r, view, cid}){
   });
   const extra = p.cancel && html`<${Btn} kind="ghost" className="btn-cancel" onClick=${() => setCancel(true)}>Отменить заявку<//>`;
 
-  /* слева — дело этого шага, под ним заявка */
+  /* слева — дело этого шага, под ним заявка. Хода нет — сверху «Сейчас»: кто и что делает */
   const main = [];
+  if(!mine.length && !stopped && st !== 'closed') main.push(html`<${NowBox} key="now" r=${r} turns=${Model.turns(r)}/>`);
   if(st === 'returned') main.push(html`<${Note} key="ret" title="Что просят исправить" by=${r.returned.by} at=${r.returned.at} quote=${r.returned.comment}/>`);
   if(st === 'finance' || st === 'ceo'){
     const hr = lastLog(r, 'hr'), fin = lastLog(r, 'finance');
@@ -495,7 +519,7 @@ function RequestPage({r, view, cid}){
   if(form === 'publish') main.push(html`<${PublishForm} key="pub" r=${r} actions=${actions} extra=${extra}/>`);
   if(decide && !cancel) main.push(html`<${DecisionForm} key=${'dc' + decide.id} r=${r} h=${decide} many=${many} actions=${actions} extra=${extra}/>`);
   open.forEach(h => main.push(html`<${HireWork} key=${h.id} r=${r} h=${h} v=${v} showName=${many}/>`));
-  if(searching && st === 'published' && p.candidates) main.push(html`<${Candidates} key="c" r=${r} v=${v} now=${now} onAdd=${p.editCandidates && (() => go('#/r/' + r.id + '/add'))}/>`);
+  if(searching && st === 'published' && p.candidates) main.push(html`<${Candidates} key="c" r=${r} v=${v} now=${now} canAdd=${p.editCandidates} guard=${guard}/>`);
   if(p.request) main.push(approving ? html`<${Brief} key="brief" r=${r} v=${v}/>` : html`<${RequestBox} key="rb" r=${r} v=${v}/>`);
 
   const own = (form || decide) && !cancel;
@@ -516,7 +540,9 @@ function RequestPage({r, view, cid}){
     <${ModalHead} title=${html`${r.title}${r.seats > 1 && html`<small className="num">× ${r.seats}</small>`}`} sub=${r.dept + ' / ' + r.project} strip=${html`<${Strip} rows=${stripRows(r)}/>`}/>
     <div className="mmain">${main}</div>
     <${Side} info=${info} history=${log}/>
-    ${cancel ? html`<${ModalFoot}><${CancelForm} r=${r} onDone=${() => setCancel(false)}/><//>`
+    ${ask && html`<${ModalFoot}><div className="row is-end guard-row" role="alert"><span>Кандидат не добавлен. Выйти без сохранения?</span>
+      <${Btn} kind="ghost" onClick=${() => setAsk(null)}>Остаться<//><${Btn} kind="danger" onClick=${() => { const f = ask; setAsk(null); guard.current = false; f(); }}>Выйти<//></div><//>`}
+    ${ask ? null : cancel ? html`<${ModalFoot}><${CancelForm} r=${r} onDone=${() => setCancel(false)}/><//>`
       : !own && (actions.length || extra) ? html`<${ModalFoot}><${Decide} actions=${actions} extra=${extra}/><//>` : null}
   </div>`;
 }
@@ -541,7 +567,7 @@ function Files({files, can, onAdd}){
 function CandidateView({r, c, v, now}){
   const h = r.hires.find(x => x.cid === c.id);
   const stageName = c.stage === 'rejected' ? 'Отказ' : c.stage === 'accepted' ? (h ? {prep:'Выход ' + Model.fmtDate(h.start), intern:'На стажировке', docs:'Оформляется', fin:'Оформлен', fot:'Оформлен', done:'В штате', dropped:'Не продолжили после стажировки'}[h.stage] : 'Согласился')
-    : c.stage === 'approved' ? 'Одобрен руководителем' : c.stage === 'mgr' ? 'У руководителя' : c.stage === 'offer' ? 'Оффер отправлен' : {new:'Новый', hr:'Интервью HR', test:'Тестовое'}[c.stage];
+    : c.stage === 'approved' ? 'Одобрен руководителем' : c.stage === 'mgr' ? 'У руководителя' : c.stage === 'offer' ? 'Оффер отправлен' : {new:'Интервью HR', hr:'Интервью HR', test:'Тестовое'}[c.stage];
   const ckind = x => /одобрил$|согласил|Выбран|нанимаем/i.test(x.text) ? 'ok' : /отказ/i.test(x.text) ? 'stop' : 'ev';
   const ctimeline = c.timeline.map((x, i) => ({at:x.at, title:x.text, who:x.by ? whoLine(x.by) : '', kind:i === 0 ? 'new' : ckind(x)}));
   const acts = html`<${CandActions} r=${r} c=${c} v=${v} now=${now}/>`;
@@ -569,7 +595,8 @@ function CandidateView({r, c, v, now}){
 /* ---------- новый кандидат: контакты, затем о кандидате ---------- */
 function AddCandidate({r, onDone, onCancel, guard}){
   const [f, setF] = useState({name:'', phone:'', tg:'', email:'', resume:'', source:'', expect:'', position:'', experience:'', comment:''});
-  const [err, setErr] = useState({});
+  const [err, setErr] = useState({}), box = useRef(null);
+  useEffect(() => { const el = box.current; if(!el) return; el.scrollIntoView({block:'nearest', behavior:Anim.on() ? 'smooth' : 'auto'}); Anim.reveal(el); el.querySelector('input').focus({preventScroll:true}); }, []);
   const set = k => e => { const n = Object.assign({}, f, {[k]:e.target.value}); setF(n); guard.current = Object.values(n).some(x => x.trim()); if(err[k] || err.contact) setErr({}); };
   const send = () => {
     const e = {};
@@ -582,29 +609,27 @@ function AddCandidate({r, onDone, onCancel, guard}){
     const cid = Store.dispatch('addCandidate', {id:r.id, fields:Object.fromEntries(Object.entries(f).map(([k, x]) => [k, x.trim()]))});
     onDone(cid);
   };
-  return html`<div className="mpage">
-    <${ModalHead} title="Новый кандидат" sub=${html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`}/>
-    <${Box} title="Контакты">
-      <div className="grid-dc">
-        <${Field} id="ac-name" label="ФИО" error=${err.name}><input className="inp" value=${f.name} onInput=${set('name')} autoComplete="off"/><//>
-        <${Field} id="ac-source" label="Откуда" error=${err.source}><select className="inp" value=${f.source} onChange=${set('source')}><option value="">Выберите</option>${Model.SOURCES.map(s => html`<option key=${s}>${s}</option>`)}</select><//>
-      </div>
-      <div className="grid3">
-        <${Field} id="ac-phone" label="Телефон" error=${err.contact}><input className="inp" type="tel" value=${f.phone} onInput=${set('phone')} placeholder="+7"/><//>
-        <${Field} label="Telegram"><input className="inp" value=${f.tg} onInput=${set('tg')} placeholder="@"/><//>
-        <${Field} label="Почта"><input className="inp" type="email" value=${f.email} onInput=${set('email')}/><//>
-      </div>
-    <//>
-    <${Box} title="О кандидате">
-      <div className="grid3">
-        <${Field} label="Сейчас работает" optional=${true}><input className="inp" value=${f.position} onInput=${set('position')}/><//>
-        <${Field} label="Опыт" optional=${true}><input className="inp" value=${f.experience} onInput=${set('experience')}/><//>
-        <${Field} label="Ожидания по зарплате" optional=${true}><input className="inp" value=${f.expect} onInput=${set('expect')}/><//>
-      </div>
+  return html`<div className="box add-c" ref=${box}>
+    <div className="box-h"><h3 className="box-t">Новый кандидат</h3></div>
+    <div className="grid-dc">
+      <${Field} id="ac-name" label="ФИО" error=${err.name}><input className="inp" value=${f.name} onInput=${set('name')} autoComplete="off"/><//>
+      <${Field} id="ac-source" label="Откуда" error=${err.source}><select className="inp" value=${f.source} onChange=${set('source')}><option value="">Выберите</option>${Model.SOURCES.map(s => html`<option key=${s}>${s}</option>`)}</select><//>
+    </div>
+    <div className="grid3">
+      <${Field} id="ac-phone" label="Телефон" error=${err.contact}><input className="inp" type="tel" value=${f.phone} onInput=${set('phone')} placeholder="+7"/><//>
+      <${Field} label="Telegram"><input className="inp" value=${f.tg} onInput=${set('tg')} placeholder="@"/><//>
+      <${Field} label="Почта"><input className="inp" type="email" value=${f.email} onInput=${set('email')}/><//>
+    </div>
+    <div className="grid3">
+      <${Field} label="Сейчас работает" optional=${true}><input className="inp" value=${f.position} onInput=${set('position')}/><//>
+      <${Field} label="Опыт" optional=${true}><input className="inp" value=${f.experience} onInput=${set('experience')}/><//>
+      <${Field} label="Ожидания по зарплате" optional=${true}><input className="inp" value=${f.expect} onInput=${set('expect')}/><//>
+    </div>
+    <div className="grid-dc">
       <${Field} label="Ссылка на резюме" optional=${true}><input className="inp" type="url" value=${f.resume} onInput=${set('resume')} placeholder="https://"/><//>
-      <${Field} label="Комментарий" optional=${true}><textarea className="inp" rows="2" value=${f.comment} onInput=${set('comment')}/><//>
-    <//>
-    <${ModalFoot}><div className="row is-end"><${Btn} kind="ghost" onClick=${onCancel}>Отмена<//><${Btn} kind="primary" onClick=${send}>Добавить<//></div><//>
+      <${Field} label="Комментарий" optional=${true}><input className="inp" value=${f.comment} onInput=${set('comment')}/><//>
+    </div>
+    <div className="row is-end"><${Btn} kind="ghost" onClick=${onCancel}>Отмена<//><${Btn} kind="primary" onClick=${send}>Добавить<//></div>
   </div>`;
 }
 const Panel = {leave:f => f()};

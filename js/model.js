@@ -44,7 +44,6 @@ const Model = (function(){
 
   /* этапы кандидата (п. 12): «Новые» включают первичный скрининг, «Одобрен» — решение руководителя */
   const STAGES = [
-    {id:'new', name:'Новые'},
     {id:'hr', name:'Интервью HR'},
     {id:'test', name:'Тестовое'},
     {id:'mgr', name:'Руководитель'},
@@ -173,6 +172,7 @@ const Model = (function(){
     });
     return t;
   }
+  const isRange = s => /\d\s*[-–—]\s*\d|(^|\s)(от|до)\s/i.test(s || '');
   const mineTurn = (x, v) => x.p === v && !x.passive;
   const late = (x, now) => x.due ? x.due < now : (x.sla ? x.since + x.sla < now : false);
 
@@ -273,7 +273,7 @@ const Model = (function(){
       const r = find(S, p.id), f = p.fields;
       const c = {id:uid('c'), name:f.name, phone:f.phone || '', tg:f.tg || '', email:f.email || '', resume:f.resume || '',
         source:f.source || '', expect:f.expect || '', position:f.position || '', experience:f.experience || '', comment:f.comment || '',
-        files:f.files || [], stage:'new', stageAt:at, added:at, timeline:[], feedback:[], reject:null};
+        files:f.files || [], stage:'hr', stageAt:at, added:at, timeline:[], feedback:[], reject:null};
       r.candidates.push(c);
       ctl(c, at, by, 'Кандидат добавлен');
       log(r, by, at, 'Добавил кандидата: ' + c.name, '', 'cand');
@@ -281,6 +281,7 @@ const Model = (function(){
     },
     move(S, by, at, p){
       const r = find(S, p.id), c = cand(r, p.cid), name = STAGES.find(s => s.id === p.to).name;
+      if(c.stage === p.to) return;
       c.stage = p.to; c.stageAt = at;
       const text = {hr:'Приглашён на интервью HR', test:'Отправлено тестовое', mgr:'Передан руководителю'}[p.to] || ('Этап: ' + name);
       ctl(c, at, by, text + (p.when ? ' — ' + p.when : ''));
@@ -316,9 +317,9 @@ const Model = (function(){
       const r = find(S, p.id), c = cand(r, p.cid);
       c.stage = 'accepted'; c.stageAt = at;
       const h = {id:uid('h'), cid:c.id, name:c.name, start:p.start, stage:'prep', stageAt:at, chosen:at, decideBy:null, decision:null,
-        lists:{prep:makeList('prep')}, hiredAt:null, finAccepted:null, fotAt:null, salary:(c.offer && c.offer.salary) || r.salary};
+        lists:{prep:makeList('prep')}, hiredAt:null, finAccepted:null, fotAt:null, salary:p.salary || (c.offer && c.offer.salary) || r.salary};
       r.hires.push(h);
-      ctl(c, at, by, 'Согласился, выход ' + fmtDate(p.start));
+      ctl(c, at, by, 'Согласился, выход ' + fmtDate(p.start) + (p.salary ? ', оклад ' + p.salary : ''));
       log(r, by, at, c.name + ' согласился на оффер, выход ' + fmtDate(p.start), '', 'accepted');
     },
     /* исполнитель отмечает свою часть списка разом: «Всё сделано» */
@@ -383,7 +384,7 @@ const Model = (function(){
   /* ---------- демонстрационные данные ----------
      Собраны теми же действиями, что и в работе: у каждой заявки настоящая история. */
   function seed(now){
-    const S = {requests:[], v:1};
+    const S = {requests:[], v:2};
     const t = h => now - h * H, day = (d, hh) => { const x = new Date(now + d * D); x.setHours(hh ?? 10, 0, 0, 0); return x.getTime(); };
     /* события — в рабочее время: сутки сжимаются в 9:00–19:00, порядок событий сохраняется */
     const work = x => { const d = new Date(x), hr = d.getHours() + d.getMinutes() / 60, m = new Date(x); m.setHours(0, 0, 0, 0);
@@ -582,7 +583,7 @@ const Model = (function(){
   }
 
   return {H, D, ROLE, PEOPLE, HRD, FIN, CEO, IT, RECRUITERS, SLA, DEPTS, REASONS, FORMATS, EMPLOYMENT, PRIORITY, PLATFORMS, SOURCES, REJECT, CANCEL,
-    STAGES, stageGroup, LISTS, listLeft, COLUMNS, phase, progress, statusText, turns, late, mineTurn, visible, perms, canCheck, WHO,
+    STAGES, stageGroup, isRange, LISTS, listLeft, COLUMNS, phase, progress, statusText, turns, late, mineTurn, visible, perms, canCheck, WHO,
     activeHires, openHires, act, seed, plural, fmtDate, fmtTime, fmtDateTime, ago, short, days};
 })();
 
@@ -590,7 +591,7 @@ const Model = (function(){
 const Store = (function(){
   const KEY = 'hr-funnel-v1', VKEY = 'hr-funnel-viewer';
   let state = null, viewer = 'dan', subs = new Set(), ver = 0, kind = 'init';
-  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if(s && s.v === 1) state = s; } catch(e) {}
+  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if(s && s.v === 2) state = s; } catch(e) {}
   if(!state) state = Model.seed(Date.now());
   try { const v = localStorage.getItem(VKEY); if(v && Model.PEOPLE[v]) viewer = v; } catch(e) {}
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e) {} };

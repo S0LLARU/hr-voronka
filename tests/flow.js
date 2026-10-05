@@ -42,7 +42,7 @@ const OUT=process.argv[2];
   console.log('cand errs:', await p.$$eval('.modal .err',e=>e.map(x=>x.textContent).join('; ')));
   await p.fill('#ac-name','Олжас Тулеуов'); await p.fill('#ac-phone','+7 701 555 12 34'); await p.selectOption('#ac-source','HH');
   await btn('Добавить');
-  await btn('Пригласить на интервью'); await btn('Руководителю на решение');
+  await btn('Руководителю на решение');
   await p.screenshot({path:OUT+'/f-cand.png'});
   await close();
   await as('Данияр'); console.log('mgr turn:', await col(T)); await open(T);
