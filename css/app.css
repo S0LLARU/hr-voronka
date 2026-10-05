@@ -323,6 +323,7 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 .is-skip .rp-l{text-decoration:line-through}
 .rp-now{display:flex;flex-wrap:wrap;gap:2px 20px;margin-top:8px;font-size:13.5px;color:var(--ink-2)}
 .rp-turn b{font-weight:500;color:var(--ink)}
+.rp-hn{margin-right:8px;padding:1px 7px;border-radius:6px;background:var(--lane);color:var(--ink);font-size:13px}
 .rp-turn.late,.rp-turn.late b{color:var(--red)}
 .rp-turn svg{vertical-align:-2px;margin-right:4px}
 
@@ -330,7 +331,8 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 .mpage{display:flex;flex-direction:column;gap:16px;padding:16px 20px 22px}
 .mpage > .now,.mpage .act > .now{margin:0}
 .mpage .tab-body{margin-top:14px}
-.act{display:flex;flex-direction:column;gap:12px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.act{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+.now.is-mine > .row{margin-top:8px}
 .hire-h:first-child{margin-top:0;padding-top:0;border-top:0}
 .secs > .sec + .sec{margin-top:18px}
 .more-h{padding-top:12px;border-top:1px solid var(--line)}

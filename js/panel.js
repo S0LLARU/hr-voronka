@@ -125,15 +125,18 @@ function MyTurn({r, t, setTab, tab, now}){
 
   if(h.stage === 'prep'){
     const left = Model.listLeft(h.lists.prep);
-    if(Model.PEOPLE[Store.viewer()].role === 'it' || left) return box(html`<div className="row"><${Btn} onClick=${() => setTab('hire', 'h-' + h.id)}>К чек-листу<//></div>`);
+    if(Model.PEOPLE[Store.viewer()].role === 'it' || left){
+      const v = Store.viewer(), mineLeft = h.lists.prep.filter(i => !i.done && !i.opt && Model.canCheck(i, r, v)).length;
+      return box(html`<div className="now-m">Осталось ${mineLeft} ${Model.plural(mineLeft, 'пункт', 'пункта', 'пунктов')}</div>${tab !== 'hire' && html`<div className="row"><${Btn} onClick=${() => setTab('hire', 'h-' + h.id)}>К чек-листу<//></div>`}`);
+    }
     return box(html`<div className="row"><${Btn} kind="primary" onClick=${() => d('started', {hid:h.id})}>Вышел на стажировку<//></div>`);
   }
   if(h.stage === 'intern') return box(html`<${DecisionForm} r=${r} h=${h}/>`);
   if(h.stage === 'docs'){
     const left = Model.listLeft(h.lists.docs);
-    return box(html`<div className="row">${left
-      ? html`<${Btn} onClick=${() => setTab('hire', 'h-' + h.id)}>К документам<//>`
-      : html`<${Btn} kind="primary" onClick=${() => d('registered', {hid:h.id})}>Сотрудник официально оформлен<//>`}</div>`);
+    return box(left
+      ? html`<div className="now-m">Осталось ${left} ${Model.plural(left, 'пункт', 'пункта', 'пунктов')}</div>${tab !== 'hire' && html`<div className="row"><${Btn} onClick=${() => setTab('hire', 'h-' + h.id)}>К документам<//></div>`}`
+      : html`<div className="row"><${Btn} kind="primary" onClick=${() => d('registered', {hid:h.id})}>Сотрудник официально оформлен<//></div>`);
   }
   if(h.stage === 'fin' || h.stage === 'fot') return box(html`
     <${Facts} rows=${[['ФИО', h.name], ['Должность', r.title], ['Отдел', r.dept], ['Проект', r.project], ['Руководитель', name(r.manager)],
@@ -191,7 +194,7 @@ function reqSteps(r){
   ];
   if(stopped){
     s = s.filter(x => x.state !== 'next');
-    if(st === 'cancelled') s.push({k:'stop', label:'Отменена', state:'stop', tip:tip(stopAt)});
+    if(st === 'cancelled') s.push({k:'stop', label:'Отменено', state:'stop', tip:tip(stopAt)});
   }
   return s;
 }
@@ -201,7 +204,7 @@ function TurnLine({t, now}){
   if(t.since && !t.ongoing) meta.push(Model.ago(t.since, now));
   if(t.due) meta.push((t.dueKind === 'выход' ? 'выход ' : 'срок ') + Model.fmtDate(t.due));
   if(t.count) meta.push(t.count[0] + ' из ' + t.count[1]);
-  return html`<span className=${'rp-turn' + (late ? ' late' : '')}>${late && html`<${Icon} n="late" s=${14} label="Срок прошёл"/>`}<b>${t.full || t.text}${t.hn ? ', ' + t.hn : ''}:</b> ${meta.join(', ')}</span>`;
+  return html`<span className=${'rp-turn' + (late ? ' late' : '')}>${t.hn && html`<span className="rp-hn">${t.hn}</span>`}${late && html`<${Icon} n="late" s=${14} label="Срок прошёл"/>`}<b>${t.full || t.text}:</b> ${meta.join(', ')}</span>`;
 }
 
 const C_STEPS = [['new','Новый'], ['hr','Интервью HR'], ['test','Тестовое'], ['mgr','Руководитель'], ['offer','Оффер'], ['accepted','Согласился']];
@@ -294,7 +297,7 @@ function CandidatesTab({r, v, now}){
       : Model.ago(c.stageAt, now);
     return html`<button key=${c.id} className="cand" onClick=${() => go('#/r/' + r.id + '/c/' + c.id)}>
       <span className="cand-n">${c.name}</span><span className="cand-p">${c.position || c.source}</span>
-      <span className=${'cand-s' + (mine || (c.stage === 'approved' && p.editCandidates) ? ' is-mine' : '') + (late ? ' late' : '')}>${late && !mine ? html`<${Icon} n="late" s=${13} label="Срок ответа прошёл"/> ` : ''}${s}</span>
+      <span className=${'cand-s' + (!late && (mine || (c.stage === 'approved' && p.editCandidates)) ? ' is-mine' : '') + (late ? ' late' : '')}>${late ? html`<${Icon} n="late" s=${13} label="Срок ответа прошёл"/> ` : ''}${s}</span>
     </button>`;
   };
   const pubs = r.publications;
@@ -333,7 +336,7 @@ function CandidateView({r, c, v, now}){
     if(reason === 'Другое' && !rc.trim()){ setErr('Напишите причину'); return; }
     d('reject', {reason, comment:rc.trim()}); setRej(false);
   };
-  const stageName = c.stage === 'rejected' ? 'Отказ' : c.stage === 'accepted' ? 'Выбран' : c.stage === 'approved' ? 'Одобрен руководителем' : c.stage === 'mgr' ? 'У руководителя' : Model.STAGES.find(s => s.id === c.stage).name;
+  const stageName = c.stage === 'rejected' ? 'Отказ' : c.stage === 'accepted' ? 'Согласился' : c.stage === 'approved' ? 'Одобрен руководителем' : c.stage === 'mgr' ? 'У руководителя' : c.stage === 'new' ? 'Новый' : Model.STAGES.find(s => s.id === c.stage).name;
 
   let actions = null;
   if(open && editor && !rej){
@@ -353,10 +356,10 @@ function CandidateView({r, c, v, now}){
   const late = c.stage === 'mgr' && c.stageAt + Model.SLA.feedback < now;
   const mgrDecide = open && c.stage === 'mgr' && manager && html`<div className="now is-mine">
     <div className="now-t">Ваш ответ по кандидату</div>
-    <div className=${'now-m' + (late ? ' late' : '')}>Ждёт ${Model.ago(c.stageAt, now)}</div>
+    <div className=${'now-m' + (late ? ' late' : '')}>${late && html`<${Icon} n="late" s=${14} label="Срок прошёл"/> `}Ждёт ${Model.ago(c.stageAt, now)}</div>
     <${Decide} actions=${[
-      {label:'Одобрить', kind:'primary', ask:true, need:false, confirm:'Одобрить кандидата', run:x => d('feedback', {verdict:'approve', comment:x})},
-      {label:'Отказать', kind:'danger', ask:true, need:true, whom:'рекрутер', confirm:'Отказать кандидату', run:x => d('feedback', {verdict:'reject', comment:x})}]}/>
+      {label:'Одобрить', kind:'primary', ask:true, need:false, confirm:'Одобрить кандидата', note:'Рекрутер отправит кандидату оффер.', run:x => d('feedback', {verdict:'approve', comment:x})},
+      {label:'Отказать', kind:'danger', ask:true, need:true, whom:'рекрутер', confirm:'Отказать кандидату', note:'Кандидат уйдёт в отказы, рекрутер увидит ваш комментарий. Вернуть кандидата нельзя.', run:x => d('feedback', {verdict:'reject', comment:x})}]}/>
   </div>`;
 
   /* под полосой — у кого кандидат сейчас, если не у вас */
@@ -365,7 +368,7 @@ function CandidateView({r, c, v, now}){
   if(c.stage === 'mgr' && !manager) cnow.push(html`<span key="m" className=${'rp-turn' + (late ? ' late' : '')}>${late && html`<${Icon} n="late" s=${14} label="Срок прошёл"/>`}<b>Ждёт ответа руководителя:</b> ${name(r.manager)}, ${Model.ago(c.stageAt, now)}</span>`);
   if(c.stage === 'approved' && !editor) cnow.push(html`<span key="a" className="rp-turn"><b>Рекрутер готовит оффер:</b> ${name(r.recruiter)}</span>`);
   if(c.stage === 'offer') cnow.push(html`<span key="o" className="rp-turn"><b>Оффер отправлен</b> ${Model.fmtDate(c.offer.at)}, ${c.offer.salary}</span>`);
-  if(h) cnow.push(html`<span key="h" className="rp-turn"><b>${{prep:'Готовится к выходу', intern:'На стажировке', docs:'Оформляется', fin:'Оформлен', fot:'Оформлен', done:'В штате', dropped:'Не продолжили после стажировки'}[h.stage]}</b>${h.stage === 'prep' ? ', выход ' + Model.fmtDate(h.start) : ''}</span>`);
+  if(h) cnow.push(html`<span key="h" className="rp-turn"><b>${h.stage === 'prep' ? 'Выход ' + Model.fmtDate(h.start) : {intern:'На стажировке', docs:'Оформляется', fin:'Оформлен', fot:'Оформлен', done:'В штате', dropped:'Не продолжили после стажировки'}[h.stage]}</b></span>`);
 
   const ckind = x => /одобрил$|согласил|Выбран|нанимаем/i.test(x.text) ? 'ok' : /отказ/i.test(x.text) ? 'stop' : 'ev';
   const ctimeline = c.timeline.map((x, i) => ({at:x.at, title:x.text, who:x.by ? whoLine(x.by) : '', kind:i === 0 ? 'new' : ckind(x)}));
@@ -391,10 +394,13 @@ function CandidateView({r, c, v, now}){
     <${ModalHead} title=${c.name} sub=${html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`} badge=${stageName} stop=${c.stage === 'rejected'}
       strip=${html`<${Strip} steps=${candSteps(c)} now=${cnow}/>`}/>
     ${mgrDecide}
-    ${act && html`<div className="act">
-      ${actions}
-      ${open && editor && c.stage !== 'mgr' && !rej && html`<div className="row"><${Btn} kind="ghost" className="btn-flush" onClick=${() => setRej(true)}>Отказать кандидату<//></div>`}
-      ${rej && html`<div className="now">
+    ${act && html`<div className="now is-mine">
+      <div className="now-t">${{new:'Скрининг', hr:'Итог интервью HR', test:'Тестовое задание', approved:'Отправить оффер', offer:'Ответ на оффер'}[c.stage]}</div>
+      <div className="now-m">На этапе ${Model.ago(c.stageAt, now)}</div>
+      ${actions && html`<div className="act">${actions}</div>`}
+      ${open && editor && c.stage !== 'mgr' && !rej && html`<div className="row"><${Btn} kind="ghost" onClick=${() => setRej(true)}>Отказать кандидату<//></div>`}
+      ${rej && html`<div className="act">
+        <p className="now-m" style=${{margin:0}}>Кандидат уйдёт в отказы, руководитель увидит причину. Вернуть кандидата нельзя.</p>
         <${Field} label="Причина отказа" error=${err && !reason ? err : ''}><select className="inp" value=${reason} onChange=${e => { setReason(e.target.value); setErr(''); }}>
           <option value="">Выберите</option>${Model.REJECT.map(x => html`<option key=${x}>${x}</option>`)}</select><//>
         <${Field} label="Комментарий" optional=${reason !== 'Другое'} error=${err && reason ? err : ''}><textarea className="inp" rows="2" value=${rc} onInput=${e => { setRc(e.target.value); setErr(''); }}/><//>
@@ -557,7 +563,7 @@ function CancelForm({r, onDone}){
   };
   return html`<div className="now" ref=${box}>
     <div className="now-t">Отменить заявку?</div>
-    <div className="now-m">Поиск остановится. HR, рекрутер и Finance увидят причину.</div>
+    <div className="now-m">Поиск остановится, кандидаты останутся в истории заявки. HR, рекрутер и Finance увидят причину. Вернуть заявку нельзя: понадобится новая.</div>
     <div style=${{marginTop:12}}>
       <${Field} label="Причина" error=${!reason ? err : ''}><select className="inp" value=${reason} onChange=${e => { setReason(e.target.value); setErr(''); }}><option value="">Выберите</option>${Model.CANCEL.map(x => html`<option key=${x}>${x}</option>`)}</select><//>
       <${Field} label="Комментарий" optional=${reason !== 'Другое'} error=${reason ? err : ''}><textarea className="inp" rows="2" value=${c} onInput=${e => { setC(e.target.value); setErr(''); }}/><//>

@@ -157,7 +157,8 @@ const Model = (function(){
       const nm = short(h.name);
       if(h.stage === 'prep'){
         const l = h.lists.prep, left = listLeft(l), itLeft = l.filter(i => !i.done && !i.opt && i.who === 'it').length;
-        t.push({p:r.recruiter, h:h.id, hn:nm, text:left ? 'Готовим выход' : 'Выход подготовлен', mine:left ? 'Подготовить выход' : 'Отметить выход на стажировку', due:h.start, dueKind:'выход', ongoing:left > 0,
+        /* свои пункты рекрутер закрыл, остались пункты IT — ход у IT, у рекрутера его нет */
+        if(left > itLeft || !left) t.push({p:r.recruiter, h:h.id, hn:nm, text:left ? 'Готовим выход' : 'Выход подготовлен', mine:left ? 'Подготовить выход' : 'Отметить выход на стажировку', due:h.start, dueKind:'выход', ongoing:left > 0,
           count:[l.length - l.filter(i => !i.done).length, l.length]});
         if(itLeft) t.push({p:IT, h:h.id, hn:nm, text:'IT готовит рабочее место', mine:'Подготовить рабочее место', due:h.start, dueKind:'выход', ongoing:true});
       }
