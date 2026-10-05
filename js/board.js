@@ -49,7 +49,9 @@ function sortCards(list, v, now){
 const boardMem = {rects:new Map(), ver:null};
 function Board({list, v, now, current, onOpen, version}){
   const ref = useRef(null), rects = useRef(boardMem.rects), lastVer = useRef(boardMem.ver);
-  const cols = Model.COLUMNS.map(c => {
+  /* у рекрутера работа линейная: согласование до него не доходит, в закрытых делать нечего — эти колонки не показываем */
+  const role = Model.PEOPLE[v].role;
+  const cols = Model.COLUMNS.filter(c => role !== 'recruiter' || !['approve','closed'].includes(c.id)).map(c => {
     let items = list.filter(r => Model.phase(r) === c.id);
     if(c.id === 'closed') items = items.filter(r => now - r.closedAt < 30 * Model.D).sort((a, b) => b.closedAt - a.closedAt);
     else items = sortCards(items, v, now);
@@ -82,7 +84,7 @@ function Board({list, v, now, current, onOpen, version}){
     return () => { removeEventListener('resize', re); s && s.removeEventListener('scroll', re, true); };
   }, []);
 
-  return html`<div className="board" ref=${ref}>
+  return html`<div className=${'board' + (cols.length < 5 ? ' is-' + cols.length : '')} ref=${ref}>
     ${cols.map(({c, items}) => html`<section className="col" key=${c.id} aria-labelledby=${'col-' + c.id}>
       <div className="col-h"><span className="col-n" id=${'col-' + c.id}>${c.name}</span>
         <span className="col-c num">${c.id === 'closed' ? '30 дней' : items.length || ''}</span></div>

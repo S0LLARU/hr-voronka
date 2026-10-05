@@ -41,7 +41,7 @@ const initials = n => n.split(' ').slice(0, 2).map(x => x[0]).join('');
    На согласовании: заявка, проверка HR, Finance, CEO. В подборе: рекрутер, публикация, подбор.
    С выбранным кандидатом: подготовка к выходу, стажировка, оформление, учёт в ФОТ. */
 const STATE_SR = {done:' — пройдено', now:' — сейчас', next:' — впереди', stop:' — остановлено', skip:' — пропущено'};
-function StepRow({steps, name}){
+function StepRow({steps}){
   const ref = useRef(null);
   useLayoutEffect(() => {
     const ol = ref.current, el = ol && ol.querySelector('.is-now, .is-stop');
@@ -50,15 +50,14 @@ function StepRow({steps, name}){
     if(el && over) ol.scrollLeft = Math.max(0, el.offsetLeft - 40);
   });
   return html`<div className="rp-row">
-    ${name && html`<span className="rp-hn">${name}</span>`}
-    <ol className="rp" ref=${ref} aria-label=${name ? 'Шаги: ' + name : 'Шаги'}>${steps.map(s => html`<li key=${s.k} className=${'is-' + s.state} title=${s.tip || null}>
+    <ol className="rp" ref=${ref} aria-label="Шаги">${steps.map(s => html`<li key=${s.k} className=${'is-' + s.state} title=${s.tip || null}>
       <span className="rp-d" aria-hidden="true">${s.state === 'done' ? html`<${Icon} n="check" s=${10} w=${3}/>` : s.state === 'stop' ? html`<${Icon} n="x" s=${10} w=${3}/>` : null}</span>
       <span className="rp-l">${s.label}</span><span className="sr">${STATE_SR[s.state]}${s.tip ? ', ' + s.tip : ''}</span>
     </li>`)}</ol>
   </div>`;
 }
-function Strip({rows}){
-  return html`<div className="strip">${rows.map((x, i) => html`<${StepRow} key=${x.key || i} steps=${x.steps} name=${x.name}/>`)}</div>`;
+function Strip({steps}){
+  return html`<div className="strip"><${StepRow} steps=${steps}/></div>`;
 }
 
 const BLANK = {status:'draft', log:[], publications:[], hires:[], candidates:[], seats:1};
@@ -94,31 +93,30 @@ function hireSteps(h){
   ];
   return dropped ? steps.slice(0, 2) : steps;
 }
-function stripRows(r){
+/* одна строка шагов (решение пользователя: вторая полоса и подписи в рамке лишние).
+   Пока ищут — шаги подбора; выбранные на нескольких местах видны своими блоками ниже.
+   Все места заняты — шаги выхода по тому, кто отстаёт */
+const H_ORDER = ['prep','intern','docs','fin','fot','done'];
+function stripSteps(r){
   const st = r.status;
-  if(['draft','returned','hr','finance','ceo','rejected'].includes(st)) return [{key:'a', steps:approveSteps(r)}];
+  if(['draft','returned','hr','finance','ceo','rejected'].includes(st)) return approveSteps(r);
   if(st === 'cancelled'){
     const steps = (lastLog(r, 'ceo') ? searchSteps(r) : approveSteps(r)).filter(x => x.state !== 'next' && x.state !== 'now');
     steps.push({k:'stop', label:'Отменено', state:'stop', tip:logTip(lastLog(r, 'cancel'))});
-    return [{key:'c', steps}];
+    return steps;
   }
-  const rows = [], many = r.seats > 1;
-  const left = r.seats - Model.activeHires(r).length;
-  if(left > 0) rows.push({key:'s', name:many && Model.activeHires(r).length ? 'Ищем ещё ' + left : null, steps:searchSteps(r)});
+  if(Model.activeHires(r).length < r.seats) return searchSteps(r);
   const hs = st === 'closed' ? r.hires.filter(h => h.stage === 'done') : Model.openHires(r);
-  hs.forEach(h => rows.push({key:h.id, name:many ? Model.short(h.name) : null, steps:hireSteps(h)}));
-  return rows.length ? rows : [{key:'s', steps:searchSteps(r)}];
+  const h = hs.slice().sort((a, b) => H_ORDER.indexOf(a.stage) - H_ORDER.indexOf(b.stage))[0];
+  return h ? hireSteps(h) : searchSteps(r);
 }
 
-const C_STEPS = [['hr','Интервью HR'], ['test','Тестовое'], ['mgr','Руководитель'], ['offer','Оффер'], ['accepted','Согласился']];
+const C_STEPS = [['hr','Интервью HR'], ['mgr','Руководитель'], ['offer','Оффер'], ['accepted','Согласился']];
 function candSteps(c){
-  const rej = c.stage === 'rejected', at = rej ? c.reject.from : c.stage === 'approved' ? 'offer' : c.stage;
+  const rej = c.stage === 'rejected', from = rej ? c.reject.from : c.stage, at = from === 'approved' ? 'offer' : from === 'test' || from === 'new' ? 'hr' : from;
   let pos = C_STEPS.findIndex(x => x[0] === at);
   if(pos < 0 || (!rej && at === 'accepted')) pos = C_STEPS.length;
-  const tested = (c.timeline || []).some(x => x.text.startsWith('Отправлено тестовое'));
-  let s = C_STEPS.map(([k, label], j) => ({k, label,
-    state:j < pos ? (k === 'test' && !tested ? 'skip' : 'done') : j === pos ? (rej ? 'stop' : 'now') : 'next',
-    tip:k === 'test' && j < pos && !tested ? 'пропущено' : ''}));
+  let s = C_STEPS.map(([k, label], j) => ({k, label, state:j < pos ? 'done' : j === pos ? (rej ? 'stop' : 'now') : 'next'}));
   if(rej){ s = s.filter(x => x.state !== 'next'); if(pos === C_STEPS.length) s.push({k:'stop', label:'Отказ', state:'stop'}); }
   return s;
 }
@@ -151,10 +149,18 @@ function ReturnForm({count, comment, setComment, onCancel, onSend, err}){
     <div className="row is-end"><${Btn} kind="ghost" onClick=${onCancel}>Отмена<//><${Btn} kind="primary" onClick=${onSend}>Вернуть на доработку<//></div>
   </div>`;
 }
-/* после согласования заявка — справка под делом шага: открыта, можно свернуть; выбор помнится */
+/* после согласования заявка — справка под делом шага. Открыта, пока она нужна для дела: назначить рекрутера,
+   написать вакансию, первые кандидаты. Когда кандидатов много или уже идёт выход — свёрнута, место под дело.
+   Свернули или открыли вручную — выбор помнится для этой заявки, пока открыта вкладка */
+const BRIEF_OPEN = new Map();
+function briefDefault(r){
+  if(['assign','assigned','inwork'].includes(r.status)) return true;
+  if(r.status !== 'published' || r.hires.some(h => h.stage !== 'dropped')) return false;
+  return r.candidates.filter(c => c.stage !== 'rejected').length < 2;
+}
 function RequestBox({r, v}){
-  const [open, setOpen] = useState(() => { try { return localStorage.getItem('hr-brief') !== '0'; } catch(e) { return true; } });
-  const toggle = () => { const n = !open; setOpen(n); try { localStorage.setItem('hr-brief', n ? '1' : '0'); } catch(e) {} };
+  const [open, setOpen] = useState(() => BRIEF_OPEN.has(r.id) ? BRIEF_OPEN.get(r.id) : briefDefault(r));
+  const toggle = () => { const n = !open; setOpen(n); BRIEF_OPEN.set(r.id, n); };
   const p = Model.perms(r, v);
   const sum = [p.salary && r.salary, [r.format, r.location].filter(Boolean).join(', '), r.schedule].filter(Boolean).join(' · ');
   return html`<section className=${'box is-fold' + (open ? ' is-open' : '')}>
@@ -188,8 +194,10 @@ function Stopped({r}){
 
 /* ---------- чек-лист: каждый исполнитель отмечает свою часть разом ----------
    Пункты — памятка, что входит в шаг. Отмечать каждый никто не станет, поэтому одна кнопка «Всё сделано»
-   на исполнителя; у сделанного — кто и когда. */
+   на исполнителя; у сделанного — кто и когда. Отмечает только сам исполнитель: HRD видит все части
+   и кого ждут, но за другого не отмечает. */
 const WHO_ORDER = ['recruiter', 'manager', 'mentor'];
+const waitFor = (w, r) => { const id = w === 'recruiter' ? r.recruiter : w === 'manager' ? r.manager : null; return id ? 'Ждём: ' + shortName(id) : 'Ещё не отмечено'; };
 function Checklist({r, h, list, v, who}){
   const items = h.lists[list];
   if(!items) return null;
@@ -205,7 +213,7 @@ function Checklist({r, h, list, v, who}){
   if(all && !open) return html`<section className="box is-fold"><h3 className="box-t"><button className="fold" aria-expanded="false" onClick=${() => setOpen(true)}>
     <span>${title}</span><span className="fold-s ok">Все отметили</span><span className="fold-i" aria-hidden="true"><${Icon} n="down" s=${16}/></span></button></h3></section>`;
   return html`<${Box} title=${all ? html`<button className="fold" aria-expanded="true" onClick=${() => setOpen(false)}><span>${title}</span><span className="fold-s ok">Все отметили</span><span className="fold-i" aria-hidden="true"><${Icon} n="down" s=${16}/></span></button>` : title}
-    aside=${!all && html`<span className="box-n num">${ready} из ${groups.length} готово</span>`}>
+    aside=${!all && groups.length > 1 && html`<span className="box-n num">${ready} из ${groups.length} готово</span>`}>
     <div className="clg-all">${groups.map(({w, items:its}) => {
       const done = its.every(i => i.done), can = Model.canCheck(its[0], r, v);
       const last = done && its.map(i => i.done).sort((a, b) => b.at - a.at)[0];
@@ -214,7 +222,7 @@ function Checklist({r, h, list, v, who}){
           <span className="clg-w">${Model.WHO[w]}</span>
           ${done ? html`<span className="clg-ok"><${Icon} n="ok" s=${16}/>Сделано, ${shortName(last.by)}, ${Model.fmtDate(last.at)}</span>
               ${can && html`<button className="link-btn" onClick=${() => set(w, false)}>Вернуть</button>`}`
-            : can ? html`<${Btn} kind="primary" className="btn-sm" onClick=${() => set(w, true)}>Всё сделано<//>` : html`<span className="muted clg-wait">Не готово</span>`}
+            : can ? html`<${Btn} kind="primary" className="btn-sm" onClick=${() => set(w, true)}>Всё сделано<//>` : html`<span className="muted clg-wait">${waitFor(w, r)}</span>`}
         </div>
         <ul className="clg-l">${its.map((it, i) => html`<li key=${i}>${it.t}${it.opt ? html` <span className="muted">при надобности</span>` : ''}</li>`)}</ul>
       </div>`;
@@ -349,8 +357,7 @@ function CandActions({r, c, v, now, small}){
   const actions = [];
   let fields = null;
   if(open && editor){
-    if(c.stage === 'hr' || c.stage === 'new') actions.push({label:'Руководителю на решение', kind:'primary', run:() => d('move', {to:'mgr'})}, {label:'Дать тестовое задание', run:() => d('move', {to:'test'})});
-    if(c.stage === 'test') actions.push({label:'Руководителю на решение', kind:'primary', run:() => d('move', {to:'mgr'})});
+    if(['hr','new','test'].includes(c.stage)) actions.push({label:'Руководителю на решение', kind:'primary', run:() => d('move', {to:'mgr'})});
     /* оклад согласован в заявке, отдельно его не вводят */
     if(c.stage === 'approved') actions.push({label:'Оффер отправлен', kind:'primary', run:() => d('offer', {salary:r.salary, start:r.start})});
     if(c.stage === 'offer'){
@@ -372,7 +379,7 @@ function CandActions({r, c, v, now, small}){
 }
 
 /* ---------- кандидаты: карточки по этапам, всё видно без перехода ---------- */
-const C_GROUPS = [['accepted','Выбраны'], ['mgr','У руководителя'], ['approved','Одобрены, ждут оффер'], ['offer','Оффер отправлен'], ['test','Тестовое'], ['hr','Интервью HR']];
+const C_GROUPS = [['accepted','Выбраны'], ['mgr','У руководителя'], ['approved','Одобрены, ждут оффер'], ['offer','Оффер отправлен'], ['hr','Интервью HR']];
 function CandCard({r, c, v, now}){
   const h = r.hires.find(x => x.cid === c.id);
   const contacts = [
@@ -401,9 +408,10 @@ function CandCard({r, c, v, now}){
 function Candidates({r, v, now, canAdd, guard}){
   const manager = r.manager === v, [showRej, setShowRej] = useState(false), [adding, setAdding] = useState(false);
   const live = r.candidates.filter(c => c.stage !== 'rejected'), rej = r.candidates.filter(c => c.stage === 'rejected');
-  const groups = C_GROUPS.map(([k, t]) => [k, k === 'mgr' && manager ? 'Ждут вашего ответа' : t, live.filter(c => c.stage === k || (k === 'hr' && c.stage === 'new')).sort((a, b) => b.stageAt - a.stageAt)]).filter(g => g[2].length);
+  const groups = C_GROUPS.map(([k, t]) => [k, k === 'mgr' && manager ? 'Ждут вашего ответа' : t, live.filter(c => c.stage === k || (k === 'hr' && (c.stage === 'new' || c.stage === 'test'))).sort((a, b) => b.stageAt - a.stageAt)]).filter(g => g[2].length);
   return html`<section className="cands">
     <div className="cands-h"><h3 className="box-t">Кандидаты <span className="muted num">${live.length}</span></h3>
+      ${r.seats > 1 && html`<span className="muted cands-left">Нужно ещё ${r.seats - Model.activeHires(r).length} из ${r.seats}</span>`}
       ${canAdd && !adding && html`<${Btn} onClick=${() => setAdding(true)}><${Icon} n="plus" s=${15}/>Добавить кандидата<//>`}</div>
     ${adding && html`<${AddCandidate} r=${r} guard=${guard} onCancel=${() => { guard.current = false; setAdding(false); }} onDone=${() => { guard.current = false; setAdding(false); }}/>`}
     ${!live.length && !adding && html`<p className="muted" style=${{margin:0}}>Кандидатов пока нет</p>`}
@@ -579,7 +587,7 @@ function RequestPage({r, view, cid, startReview}){
   const log = p.history && r.log.filter(l => !/^(Отметил|Снял отметку):/.test(l.text)).map(l => ({at:l.at, title:byGender(l.text, l.by), who:whoLine(l.by), comment:l.comment, kind:logKind(l)}));
 
   return html`<div className="mgrid">
-    <${ModalHead} title=${html`${r.title}${r.seats > 1 && html`<small className="num">× ${r.seats}</small>`}`} sub=${r.dept + ' / ' + r.project} strip=${html`<${Strip} rows=${stripRows(r)}/>`}/>
+    <${ModalHead} title=${html`${r.title}${r.seats > 1 && html`<small className="num">× ${r.seats}</small>`}`} sub=${r.dept + ' / ' + r.project} strip=${html`<${Strip} steps=${stripSteps(r)}/>`}/>
     <div className="mmain">${main}</div>
     <${Side} info=${info} history=${log}/>
     ${ask && html`<${ModalFoot}><div className="row is-end guard-row" role="alert"><span>Есть несохранённые изменения. Выйти без сохранения?</span>
@@ -664,13 +672,13 @@ function DocPane({r, c, can}){
 function CandidateView({r, c, v, now}){
   const h = r.hires.find(x => x.cid === c.id);
   const stageName = c.stage === 'rejected' ? 'Отказ' : c.stage === 'accepted' ? (h ? {prep:'Выход ' + Model.fmtDate(h.start), intern:'На стажировке', docs:'Оформляется', fin:'Оформлен', fot:'Оформлен', done:'В штате', dropped:'Не продолжили после стажировки'}[h.stage] : 'Согласился')
-    : c.stage === 'approved' ? 'Одобрен руководителем' : c.stage === 'mgr' ? 'У руководителя' : c.stage === 'offer' ? 'Оффер отправлен' : {new:'Интервью HR', hr:'Интервью HR', test:'Тестовое'}[c.stage];
+    : c.stage === 'approved' ? 'Одобрен руководителем' : c.stage === 'mgr' ? 'У руководителя' : c.stage === 'offer' ? 'Оффер отправлен' : 'Интервью HR';
   const ckind = x => /одобрил$|согласил|Выбран|нанимаем/i.test(x.text) ? 'ok' : /отказ/i.test(x.text) ? 'stop' : 'ev';
   const ctimeline = c.timeline.map((x, i) => ({at:x.at, title:x.text, who:x.by ? whoLine(x.by) : '', kind:i === 0 ? 'new' : ckind(x)}));
   const link = (href, t, ext) => html`<a href=${href} target=${ext ? '_blank' : undefined} rel=${ext ? 'noopener' : undefined}>${t}</a>`;
 
   return html`<div className="cgrid">
-    <${ModalHead} title=${c.name} sub=${html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`} strip=${html`<${Strip} rows=${[{steps:candSteps(c)}]}/>`}/>
+    <${ModalHead} title=${c.name} sub=${html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`} strip=${html`<${Strip} steps=${candSteps(c)}/>`}/>
     <div className="cside">
       ${c.stage === 'rejected' && html`<${Note} title=${'Отказ: ' + c.reject.reason.toLowerCase()} by=${c.reject.by} at=${c.reject.at} quote=${c.reject.comment}/>`}
       <${Box} title="Кандидат"><${Fields} cols=${2} rows=${[['Этап', stageName], ['Откуда', c.source], ['Сейчас работает', c.position, true], ['Опыт', c.experience], ['Ожидания', c.expect],

@@ -41,10 +41,10 @@ const Model = (function(){
   const REJECT = ['Не подходит по опыту','Не прошёл интервью','Не сдал тестовое','Зарплатные ожидания','Отказался сам','Другое'];
   const CANCEL = ['Позиция больше не требуется','Нашли внутри компании','Другое'];
 
-  /* этапы кандидата (п. 12): «Новые» включают первичный скрининг, «Одобрен» — решение руководителя */
+  /* этапы кандидата (п. 12): «Одобрен» — решение руководителя. Тестового этапа нет (решение пользователя):
+     кнопка ничего не меняла, тестовое — часть интервью */
   const STAGES = [
     {id:'hr', name:'Интервью HR'},
-    {id:'test', name:'Тестовое'},
     {id:'mgr', name:'Руководитель'},
     {id:'offer', name:'Оффер'}
   ];
@@ -194,10 +194,9 @@ const Model = (function(){
       cancel: (own || role === 'hrd') && !['closed','rejected','cancelled'].includes(r.status)
     };
   }
-  /* может ли человек отметить пункт чек-листа */
+  /* может ли человек отметить пункт чек-листа —
+     только сам исполнитель: HRD видит все части, но за других не отмечает */
   function canCheck(item, r, v){
-    const role = PEOPLE[v].role;
-    if(role === 'hrd') return true;
     const w = item.who.split(' ');
     if(w.includes('recruiter') && r.recruiter === v) return true;
     if(w.includes('manager') && r.manager === v) return true;
@@ -283,7 +282,7 @@ const Model = (function(){
       const r = find(S, p.id), c = cand(r, p.cid), name = STAGES.find(s => s.id === p.to).name;
       if(c.stage === p.to) return;
       c.stage = p.to; c.stageAt = at;
-      const text = {hr:'Приглашён на интервью HR', test:'Отправлено тестовое', mgr:'Передан руководителю'}[p.to] || ('Этап: ' + name);
+      const text = {hr:'Приглашён на интервью HR', mgr:'Передан руководителю'}[p.to] || ('Этап: ' + name);
       ctl(c, at, by, text + (p.when ? ' — ' + p.when : ''));
       log(r, by, at, c.name + ': ' + lower1(text), p.comment, 'cand');
     },
@@ -384,7 +383,7 @@ const Model = (function(){
   /* ---------- демонстрационные данные ----------
      Собраны теми же действиями, что и в работе: у каждой заявки настоящая история. */
   function seed(now){
-    const S = {requests:[], v:3};
+    const S = {requests:[], v:4};
     const t = h => now - h * H, day = (d, hh) => { const x = new Date(now + d * D); x.setHours(hh ?? 10, 0, 0, 0); return x.getTime(); };
     /* события — в рабочее время: сутки сжимаются в 9:00–19:00, порядок событий сохраняется */
     const work = x => { const d = new Date(x), hr = d.getHours() + d.getMinutes() / 60, m = new Date(x); m.setHours(0, 0, 0, 0);
@@ -494,8 +493,8 @@ const Model = (function(){
 
     const analyst = approve('analyst', 1000, 6, {hrAt:990, finAt:960, ceoAt:950, rec:'sam', deadline:day(-2), assignAt:945, takeAt:940, pubAt:936});
     c1 = addC(analyst, 'sam', C('Ильяс Кенжебаев','Аналитик в банке','LinkedIn','700 000 ₸'), 900);
-    go('sam','move',{id:analyst,cid:c1,to:'hr'},880); go('sam','move',{id:analyst,cid:c1,to:'test'},860); go('sam','move',{id:analyst,cid:c1,to:'mgr'},800);
-    go('erl','feedback',{id:analyst,cid:c1,verdict:'approve',comment:'Сильное тестовое.'},790);
+    go('sam','move',{id:analyst,cid:c1,to:'hr'},880); go('sam','move',{id:analyst,cid:c1,to:'mgr'},800);
+    go('erl','feedback',{id:analyst,cid:c1,verdict:'approve',comment:'Сильный кейс на интервью.'},790);
     go('sam','offer',{id:analyst,cid:c1,salary:'650 000 ₸',start:day(-12)},780); go('sam','accepted',{id:analyst,cid:c1,start:day(-12)},770);
     let ah = S.requests.find(r => r.id === analyst).hires[0];
     checkAll(analyst, ah, 'prep', 300, 'sam'); go('sam','started',{id:analyst,hid:ah.id},12*24); checkAll(analyst, ah, 'day1', 12*24 - 3, 'sam');
@@ -516,7 +515,7 @@ const Model = (function(){
     const copy = approve('copy', 500, 6, {hrAt:490, finAt:470, ceoAt:460, rec:'ali', deadline:day(5), assignAt:455, takeAt:452, pubAt:450});
     c1 = addC(copy, 'ali', C('Динара Оразбаева','Редактор в медиа','Telegram','320 000 ₸'), 400);
     const c3 = addC(copy, 'ali', C('Максат Нургалиев','Копирайтер, фриланс','HH','350 000 ₸'), 395);
-    go('ali','move',{id:copy,cid:c1,to:'hr'},380); go('ali','move',{id:copy,cid:c1,to:'test'},370); go('ali','move',{id:copy,cid:c1,to:'mgr'},300);
+    go('ali','move',{id:copy,cid:c1,to:'hr'},380); go('ali','move',{id:copy,cid:c1,to:'mgr'},300);
     go('ali','move',{id:copy,cid:c3,to:'hr'},378); go('ali','reject',{id:copy,cid:c3,reason:'Не прошёл интервью',comment:''},360);
     go('mad','feedback',{id:copy,cid:c1,verdict:'approve',comment:'Тексты живые, берём.'},280);
     go('ali','offer',{id:copy,cid:c1,salary:'320 000 ₸',start:day(2)},100); go('ali','accepted',{id:copy,cid:c1,start:day(2)},60);
@@ -540,9 +539,9 @@ const Model = (function(){
 
     const motion = approve('motion', 260, 6, {hrAt:250, finAt:240, ceoAt:230, rec:'ali', deadline:day(6), assignAt:226, takeAt:224, pubAt:220, pub2:210});
     const m = [
-      ['Камила Абдрахманова','Моушн-дизайнер в студии','HH','600 000 ₸', 190, ['hr',170,'test',150,'mgr',30]],
+      ['Камила Абдрахманова','Моушн-дизайнер в студии','HH','600 000 ₸', 190, ['hr',170,'mgr',30]],
       ['Арсен Туяков','Моушн-дизайнер, фриланс','Telegram','500 000 ₸', 180, ['hr',160,'mgr',6]],
-      ['Асем Касенова','Дизайнер-аниматор','Instagram','450 000 ₸', 140, ['hr',100,'test',70]],
+      ['Асем Касенова','Дизайнер-аниматор','Instagram','450 000 ₸', 140, ['hr',100]],
       ['Алихан Жаксылыков','3D-аниматор','HH','700 000 ₸', 90, ['hr',30]],
       ['Мария Ким','Моушн-дизайнер в агентстве','LinkedIn','550 000 ₸', 60, ['hr',20]],
       ['Нурлан Абенов','Junior моушн-дизайнер','HH','350 000 ₸', 12, []],
@@ -590,7 +589,7 @@ const Model = (function(){
 const Store = (function(){
   const KEY = 'hr-funnel-v1', VKEY = 'hr-funnel-viewer';
   let state = null, viewer = 'dan', subs = new Set(), ver = 0, kind = 'init';
-  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if(s && s.v === 3) state = s; } catch(e) {}
+  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if(s && s.v === 4) state = s; } catch(e) {}
   if(!state) state = Model.seed(Date.now());
   try { const v = localStorage.getItem(VKEY); if(v && Model.PEOPLE[v]) viewer = v; } catch(e) {}
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e) {} };

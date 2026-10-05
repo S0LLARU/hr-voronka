@@ -71,7 +71,8 @@ const OUT=process.argv[2];
   { while(await p.locator('.modal .clg button:has-text("Всё сделано")').count()){ await p.locator('.modal .clg button:has-text("Всё сделано")').first().click(); await p.waitForTimeout(150); } }
   await btn('Сотрудник оформлен'); await close();
   await as('Ринат'); await task('Олжас Тулеуов','Учесть в ФОТ');
-  await as('Самат'); console.log('final:', await col(T));
+  await as('Самат'); console.log('recruiter cols:', await p.$$eval('.col-n',e=>e.map(x=>x.textContent).join(', ')));
+  await as('Гульнара'); console.log('final:', await col(T));
   await open(T); await p.click('.tl-more').catch(()=>{}); await p.waitForTimeout(200); await p.screenshot({path:OUT+'/f-path.png', fullPage:false});
   console.log(errs.join('\n')||'no errors');
   await b.close();

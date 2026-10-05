@@ -140,24 +140,34 @@ function App(){
     const f = modal.current && modal.current.querySelector('[data-autofocus]'); if(f) f.focus({preventScroll:true});
   }, [key, slot]);
   useEffect(() => { if(!shown) prevKey.current = ''; }, [!!shown]);
-  /* черта под шапкой и над кнопками — только когда под ними уходит содержимое */
+  /* черта под шапкой и над кнопками — только когда под ними уходит содержимое.
+     Колонки окна едут вместе с прокруткой, если им хватает места (решение пользователя): колонка ниже окна
+     прокручивается до своего низа и дальше стоит, колонка короче окна стоит сверху. Высота окна — в --bh,
+     по ней лист резюме прокручивается сам по себе */
   useEffect(() => {
     const b = body.current, m = modal.current; if(!b || !m) return;
     const f = () => { m.classList.toggle('is-scrolled', b.scrollTop > 0); m.classList.toggle('is-more', b.scrollTop + b.clientHeight < b.scrollHeight - 1); };
-    f(); b.addEventListener('scroll', f);
-    const ro = new ResizeObserver(f); ro.observe(b); if(b.firstElementChild) ro.observe(b.firstElementChild);
-    return () => { b.removeEventListener('scroll', f); ro.disconnect(); };
+    const stick = () => {
+      const h = b.clientHeight; m.style.setProperty('--bh', h + 'px');
+      b.querySelectorAll('.mmain, .mside, .cside').forEach(el => { el.style.top = Math.min(0, h - el.offsetHeight - 24) + 'px'; });
+    };
+    const all = () => { stick(); f(); };
+    all(); b.addEventListener('scroll', f);
+    const ro = new ResizeObserver(all); ro.observe(b);
+    const watch = () => { ro.observe(b.firstElementChild || b); b.querySelectorAll('.mmain, .mside, .cside').forEach(el => ro.observe(el)); };
+    watch(); const mo = new MutationObserver(() => { watch(); all(); }); mo.observe(b, {childList:true, subtree:false});
+    return () => { b.removeEventListener('scroll', f); ro.disconnect(); mo.disconnect(); };
   }, [!!shown, key, slot]);
 
   const sr = shown && shown.id ? S.requests.find(r => r.id === shown.id) : null;
-  let content = null, wide = true, label = '';
+  let content = null, wide = true, tall = false, label = '';
   if(shown && shown.form){
     const fr = shown.form === 'edit' ? sr : null;
     wide = false; label = fr ? fr.title : 'Новая заявка';
     if(shown.form === 'new' || fr) content = html`<${RequestForm} key=${key} r=${fr} onClose=${id => { Panel.leave = f => f(); go(id ? '#/r/' + id : '#/'); }}/>`;
   } else if(sr){
     const c = shown.cid && sr.candidates.find(x => x.id === shown.cid);
-    label = shown.view === 'cand' && c ? c.name : sr.title; wide = shown.view !== 'add';
+    label = shown.view === 'cand' && c ? c.name : sr.title; wide = shown.view !== 'add'; tall = shown.view === 'cand' && !!c;
     content = html`<${RequestPage} key=${sr.id} r=${sr} view=${shown.view} cid=${shown.cid} startReview=${shown.review}/>`;
   }
   const canCreate = me.role === 'manager' || me.role === 'hrd';
@@ -180,7 +190,7 @@ function App(){
     ${shown && html`<${Fragment}>
       <div className="scrim is-modal" ref=${scrim} onClick=${close}/>
       <div className="modal-wrap">
-      <div className=${'modal' + (wide ? '' : ' is-narrow')} ref=${modal} role="dialog" aria-modal="true" aria-label=${label}>
+      <div className=${'modal' + (wide ? '' : ' is-narrow') + (tall ? ' is-tall' : '')} ref=${modal} role="dialog" aria-modal="true" aria-label=${label}>
         <div className="m-head">
           <div className="m-slot" ref=${setSlot}/>
           <button className="icon-btn m-x" aria-label="Закрыть" onClick=${close}><${Icon} n="x" s=${18}/></button>
