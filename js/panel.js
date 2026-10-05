@@ -148,11 +148,13 @@ function MyTurn({r, t, setTab, tab, now}){
   return null;
 }
 
-/* ---------- полоса пути под шапкой ----------
-   Шаги одной строкой: пройдено, сейчас, впереди. Под ней — кто держит сейчас и сколько ждёт.
-   Свой ход здесь не повторяется: он ниже, с кнопкой. */
+/* ---------- полоса шагов под шапкой ----------
+   Шаги того, что происходит внутри окна сейчас, а не вся воронка — её видно по доске.
+   На согласовании: заявка, HR, Finance, CEO. В подборе: рекрутер, публикация, подбор.
+   С выбранным кандидатом: подготовка к выходу, стажировка, оформление, учёт в ФОТ —
+   своя строка на каждого выбранного. Под шагами — кто держит сейчас и сколько ждёт. */
 const STATE_SR = {done:' — пройдено', now:' — сейчас', next:' — впереди', stop:' — остановлено', skip:' — пропущено'};
-function Strip({steps, now}){
+function StepRow({steps, name}){
   const ref = useRef(null);
   useLayoutEffect(() => {
     const ol = ref.current, el = ol && ol.querySelector('.is-now, .is-stop');
@@ -160,43 +162,70 @@ function Strip({steps, now}){
     if(ol) ol.classList.toggle('is-over', !!over);
     if(el && over) ol.scrollLeft = Math.max(0, el.offsetLeft - 40);
   });
-  return html`<div className="strip">
-    <ol className="rp" ref=${ref} aria-label="Путь">${steps.map(s => html`<li key=${s.k} className=${'is-' + s.state} title=${s.tip || null}>
+  return html`<div className="rp-row">
+    ${name && html`<span className="rp-hn">${name}</span>`}
+    <ol className="rp" ref=${ref} aria-label=${name ? 'Шаги: ' + name : 'Шаги'}>${steps.map(s => html`<li key=${s.k} className=${'is-' + s.state} title=${s.tip || null}>
       <span className="rp-d" aria-hidden="true">${s.state === 'done' ? html`<${Icon} n="check" s=${10} w=${3}/>` : s.state === 'stop' ? html`<${Icon} n="x" s=${10} w=${3}/>` : null}</span>
       <span className="rp-l">${s.label}</span><span className="sr">${STATE_SR[s.state]}${s.tip ? ', ' + s.tip : ''}</span>
     </li>`)}</ol>
+  </div>`;
+}
+function Strip({rows, now}){
+  return html`<div className="strip">
+    ${rows.map((x, i) => html`<${StepRow} key=${x.key || i} steps=${x.steps} name=${x.name}/>`)}
     ${now && now.length > 0 && html`<div className="rp-now">${now}</div>`}
   </div>`;
 }
 
 const BLANK = {status:'draft', log:[], publications:[], hires:[], candidates:[], seats:1};
-function reqSteps(r){
-  const last = s => r.log.filter(x => x.step === s).pop();
-  const tip = l => l ? shortName(l.by) + ', ' + Model.fmtDateTime(l.at) : '';
-  const st = r.status, pre = st === 'draft' || st === 'returned', stopped = st === 'rejected' || st === 'cancelled';
-  const stopAt = stopped ? r.log.filter(x => x.step === 'reject' || x.step === 'cancel').pop() : null;
-  const finStop = stopAt && stopAt.step === 'reject' && stopAt.by === Model.FIN, ceoStop = stopAt && stopAt.step === 'reject' && stopAt.by === Model.CEO;
-  const sent = last('sent'), hr = last('hr'), fin = last('finance'), ceo = last('ceo'), tk = last('take');
-  const hs = Model.activeHires(r), n = r.seats, cnt = l => hs.filter(h => l.includes(h.stage)).length;
-  const pubs = r.publications || [];
-  let s = [
-    {k:'req', label:'Заявка', state:pre ? 'now' : 'done', tip:!pre && tip(sent)},
-    {k:'hr', label:'HR', state:st === 'hr' ? 'now' : hr && !pre ? 'done' : 'next', tip:!pre && tip(hr)},
-    {k:'fin', label:'Finance', state:finStop ? 'stop' : st === 'finance' ? 'now' : fin && !pre ? 'done' : 'next', tip:finStop ? tip(stopAt) : !pre && tip(fin)},
-    {k:'ceo', label:'CEO', state:ceoStop ? 'stop' : st === 'ceo' ? 'now' : ceo ? 'done' : 'next', tip:ceoStop ? tip(stopAt) : tip(ceo)},
-    {k:'rec', label:'Рекрутер', state:tk ? 'done' : st === 'assign' || st === 'assigned' ? 'now' : 'next', tip:r.recruiter ? name(r.recruiter) : ''},
-    {k:'search', label:'Подбор', state:hs.length >= n ? 'done' : st === 'inwork' || st === 'published' ? 'now' : 'next',
-      tip:pubs.map(x => x.platform + ' ' + Model.fmtDate(x.date)).join(', ')},
-    {k:'start', label:'Выход', state:cnt(['prep','intern']) ? 'now' : cnt(['docs','fin','fot','done']) >= n ? 'done' : 'next'},
-    {k:'docs', label:'Оформление', state:cnt(['docs']) ? 'now' : cnt(['fin','fot','done']) >= n ? 'done' : 'next'},
-    {k:'fot', label:'ФОТ', state:cnt(['fin','fot']) ? 'now' : cnt(['done']) >= n ? 'done' : 'next'},
-    {k:'closed', label:'Закрыто', state:st === 'closed' ? 'done' : 'next', tip:st === 'closed' && Model.fmtDate(r.closedAt, true)}
+const lastLog = (r, s) => r.log.filter(x => x.step === s).pop();
+const logTip = l => l ? shortName(l.by) + ', ' + Model.fmtDateTime(l.at) : '';
+function approveSteps(r){
+  const st = r.status, pre = st === 'draft' || st === 'returned';
+  const stopAt = st === 'rejected' ? r.log.filter(x => x.step === 'reject').pop() : null;
+  const finStop = stopAt && stopAt.by === Model.FIN, ceoStop = stopAt && stopAt.by === Model.CEO;
+  const sent = lastLog(r, 'sent'), hr = lastLog(r, 'hr'), fin = lastLog(r, 'finance'), ceo = lastLog(r, 'ceo');
+  return [
+    {k:'req', label:'Заявка', state:pre ? 'now' : 'done', tip:!pre && logTip(sent)},
+    {k:'hr', label:'Проверка HR', state:st === 'hr' ? 'now' : hr && !pre ? 'done' : 'next', tip:!pre && logTip(hr)},
+    {k:'fin', label:'Finance', state:finStop ? 'stop' : st === 'finance' ? 'now' : fin && !pre ? 'done' : 'next', tip:finStop ? logTip(stopAt) : !pre && logTip(fin)},
+    {k:'ceo', label:'CEO', state:ceoStop ? 'stop' : st === 'ceo' ? 'now' : ceo ? 'done' : 'next', tip:ceoStop ? logTip(stopAt) : logTip(ceo)}
   ];
-  if(stopped){
-    s = s.filter(x => x.state !== 'next');
-    if(st === 'cancelled') s.push({k:'stop', label:'Отменено', state:'stop', tip:tip(stopAt)});
+}
+function searchSteps(r){
+  const st = r.status, tk = lastLog(r, 'take'), pubs = r.publications || [], n = r.candidates.length;
+  return [
+    {k:'rec', label:'Рекрутер', state:tk ? 'done' : st === 'assign' || st === 'assigned' ? 'now' : 'next', tip:r.recruiter ? name(r.recruiter) : ''},
+    {k:'pub', label:'Публикация', state:pubs.length ? 'done' : st === 'inwork' ? 'now' : 'next', tip:pubs.map(x => x.platform + ' ' + Model.fmtDate(x.date)).join(', ')},
+    {k:'search', label:'Подбор', state:Model.activeHires(r).length >= r.seats ? 'done' : st === 'published' ? 'now' : 'next',
+      tip:n ? n + ' ' + Model.plural(n, 'кандидат', 'кандидата', 'кандидатов') : ''}
+  ];
+}
+function hireSteps(h){
+  const s = h.stage, idx = ['prep','intern','docs','fin','done'].indexOf(s === 'fot' ? 'fin' : s), dropped = s === 'dropped';
+  const st = i => dropped ? (i < 1 ? 'done' : 'stop') : idx > i ? 'done' : idx === i ? 'now' : 'next';
+  const steps = [
+    {k:'prep', label:'Подготовка к выходу', state:st(0), tip:'выход ' + Model.fmtDate(h.start)},
+    {k:'intern', label:dropped ? 'Не продолжаем' : 'Стажировка', state:st(1), tip:h.internStart ? 'с ' + Model.fmtDate(h.internStart) : ''},
+    {k:'docs', label:'Оформление', state:st(2), tip:h.hiredAt ? 'оформлен ' + Model.fmtDate(h.hiredAt) : ''},
+    {k:'fot', label:'Учёт в ФОТ', state:st(3), tip:h.fotAt ? 'учтено ' + Model.fmtDate(h.fotAt.at) : ''}
+  ];
+  return dropped ? steps.slice(0, 2) : steps;
+}
+/* какие строки шагов показать в окне заявки */
+function stripRows(r){
+  const st = r.status;
+  if(['draft','returned','hr','finance','ceo','rejected'].includes(st)) return [{key:'a', steps:approveSteps(r)}];
+  if(st === 'cancelled'){
+    const steps = (lastLog(r, 'ceo') ? searchSteps(r) : approveSteps(r)).filter(x => x.state !== 'next' && x.state !== 'now');
+    steps.push({k:'stop', label:'Отменено', state:'stop', tip:logTip(r.log.filter(x => x.step === 'cancel').pop())});
+    return [{key:'c', steps}];
   }
-  return s;
+  const rows = [];
+  if(Model.activeHires(r).length < r.seats) rows.push({key:'s', steps:searchSteps(r)});
+  const hs = st === 'closed' ? r.hires.filter(h => h.stage === 'done') : Model.openHires(r);
+  hs.forEach(h => rows.push({key:h.id, name:Model.short(h.name), steps:hireSteps(h)}));
+  return rows.length ? rows : [{key:'s', steps:searchSteps(r)}];
 }
 /* кто держит сейчас: «Ждёт Finance: Ринат Оспанов, 1 день» */
 function TurnLine({t, now}){
@@ -253,35 +282,29 @@ function Step({state, title, meta, quote, children, id}){
   </li>`;
 }
 
-/* сотрудник: путь каждого выбранного от подготовки выхода до ФОТ, чек-листы в своих шагах */
+/* сотрудник: шаги видны в полосе сверху, здесь — работа текущего шага (чек-лист),
+   пройденные шаги свёрнуты ниже: решение по стажировке, отметки, кто учёл в ФОТ */
 function HireTab({r, v, focus}){
   useEffect(() => { if(focus){ const el = document.getElementById(focus); if(el) el.scrollIntoView({block:'start', behavior:Anim.on() ? 'smooth' : 'auto'}); } }, [focus]);
+  const role = Model.PEOPLE[v].role;
   return html`<div>${r.hires.map(h => {
-    const s = h.stage, idx = ['prep','intern','docs','fin','fot','done'].indexOf(s), dropped = s === 'dropped';
-    const S = i => dropped ? (i < 1 ? 'done' : i === 1 ? 'stop' : 'next') : idx > i ? 'done' : idx === i ? 'now' : 'next';
-    const dec = h.decision;
-    const fold = (list, label) => html`<details><summary className="muted" style=${{cursor:'pointer'}}>${label}: ${h.lists[list].filter(i => i.done).length} из ${h.lists[list].length}</summary><${Checklist} r=${r} h=${h} list=${list} v=${v}/></details>`;
-    return html`<${Fragment} key=${h.id}>
-      <div className="hire-h" id=${'h-' + h.id}>${h.name}</div>
-      <ol className="path">
-        <${Step} state=${S(0)} title="Подготовка к выходу" meta=${'Согласился ' + Model.fmtDate(h.chosen) + ', выход ' + Model.fmtDate(h.start)}>
-          ${s === 'prep' ? html`<${Checklist} r=${r} h=${h} list="prep" v=${v}/>` : fold('prep', 'Чек-лист')}
-        <//>
-        <${Step} state=${S(1)} title=${dropped ? 'Не продолжаем после стажировки' : 'Стажировка'}
-          meta=${h.internStart ? 'С ' + Model.fmtDate(h.internStart) + (s === 'intern' ? ', решение до ' + Model.fmtDate(h.decideBy) : dec ? ', решение ' + Model.fmtDate(dec.at) + ', ' + shortName(dec.by) : '') : ''}
-          quote=${dec && dec.comment}>
-          ${h.lists.day1 && (s === 'intern' ? html`<${Checklist} r=${r} h=${h} list="day1" v=${v}/>` : fold('day1', 'Первый день'))}
-        <//>
-        ${!dropped && html`
-        <${Step} state=${S(2)} title="Оформление" meta=${h.hiredAt ? 'Официально оформлен ' + Model.fmtDate(h.hiredAt, true) : ''}>
-          ${h.lists.docs && (s === 'docs' ? html`<${Checklist} r=${r} h=${h} list="docs" v=${v}/>` : fold('docs', 'Документы'))}
-          ${h.lists.onboarding && html`<details open=${(s === 'fin' || s === 'fot') && Model.PEOPLE[v].role !== 'finance'}><summary className="muted" style=${{cursor:'pointer', marginTop:8}}>Onboarding: ${h.lists.onboarding.filter(i => i.done).length} из ${h.lists.onboarding.length}</summary><${Checklist} r=${r} h=${h} list="onboarding" v=${v}/></details>`}
-        <//>
-        <${Step} state=${idx >= 3 ? (s === 'done' ? 'done' : 'now') : 'next'} title="Finance: учесть в ФОТ"
-          meta=${h.fotAt ? 'Учтено ' + Model.fmtDateTime(h.fotAt.at) + ', ' + shortName(h.fotAt.by) : h.finAccepted ? 'Принято в работу ' + Model.fmtDateTime(h.finAccepted.at) : s === 'fin' ? 'Уведомление отправлено ' + Model.fmtDateTime(h.hiredAt) : ''}
-          quote=${h.fotAt && h.fotAt.comment}/>`}
-      </ol>
-    <//>`;
+    const s = h.stage, dec = h.decision, cnt = l => h.lists[l] ? h.lists[l].filter(i => i.done).length + ' из ' + h.lists[l].length : '';
+    const list = l => h.lists[l] && html`<${Checklist} r=${r} h=${h} list=${l} v=${v}/>`;
+    const quote = q => q && html`<blockquote className="step-q">${q}</blockquote>`;
+    const now = {prep:list('prep'), intern:list('day1'), docs:html`${list('docs')}${list('onboarding')}`,
+      fin:role !== 'finance' && list('onboarding'), fot:role !== 'finance' && list('onboarding')}[s];
+    const past = [];
+    if(s !== 'prep') past.push({k:'prep', t:'Подготовка к выходу', m:'чек-лист ' + cnt('prep') + ', выход ' + Model.fmtDate(h.start), body:list('prep')});
+    if(dec) past.push({k:'intern', t:s === 'dropped' ? 'Не продолжаем после стажировки' : 'Стажировка', m:'решение ' + Model.fmtDate(dec.at) + ', ' + shortName(dec.by), body:html`${quote(dec.comment)}${list('day1')}`});
+    if(h.hiredAt) past.push({k:'docs', t:'Оформление', m:'оформлен ' + Model.fmtDate(h.hiredAt, true), body:html`${list('docs')}${s === 'done' && list('onboarding')}`});
+    if(h.fotAt) past.push({k:'fot', t:'Учёт в ФОТ', m:'учтено ' + Model.fmtDate(h.fotAt.at) + ', ' + shortName(h.fotAt.by), body:quote(h.fotAt.comment)});
+    return html`<section className="hire" key=${h.id} id=${'h-' + h.id}>
+      ${r.hires.length > 1 && html`<div className="hire-h">${h.name}</div>`}
+      ${now || null}
+      ${past.length > 0 && html`<div className="past">
+        ${past.map(x => html`<details key=${x.k}><summary><span className="past-t">${x.t}</span> <span className="muted">${x.m}</span></summary><div className="past-b">${x.body}</div></details>`)}
+      </div>`}
+    </section>`;
   })}</div>`;
 }
 
@@ -392,7 +415,7 @@ function CandidateView({r, c, v, now}){
 
   return html`<div className="mpage">
     <${ModalHead} title=${c.name} sub=${html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`} badge=${stageName} stop=${c.stage === 'rejected'}
-      strip=${html`<${Strip} steps=${candSteps(c)} now=${cnow}/>`}/>
+      strip=${html`<${Strip} rows=${[{steps:candSteps(c)}]} now=${cnow}/>`}/>
     ${mgrDecide}
     ${act && html`<div className="now is-mine">
       <div className="now-t">${{new:'Скрининг', hr:'Итог интервью HR', test:'Тестовое задание', approved:'Отправить оффер', offer:'Ответ на оффер'}[c.stage]}</div>
@@ -456,7 +479,7 @@ function AddCandidate({r, onDone, onCancel, guard}){
     onDone(cid);
   };
   return html`<div className="page is-narrow">
-    <${ModalHead} title="Новый кандидат" sub=${html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`} strip=${html`<${Strip} steps=${candSteps({stage:'new'})}/>`}/>
+    <${ModalHead} title="Новый кандидат" sub=${html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`} strip=${html`<${Strip} rows=${[{steps:candSteps({stage:'new'})}]}/>`}/>
     <section className="box">
       <${Field} id="ac-name" label="ФИО" error=${err.name}><input className="inp" value=${f.name} onInput=${set('name')} autoComplete="off"/><//>
       <div className="grid2">
@@ -607,7 +630,7 @@ function RequestPage({r, view, cid}){
   }
 
   const log = r.log.filter(l => !/^(Отметил|Снял отметку):/.test(l.text)).map(l => ({at:l.at, title:byGender(l.text, l.by), who:whoLine(l.by), comment:l.comment, kind:logKind(l)}));
-  const strip = html`<${Strip} steps=${reqSteps(r)} now=${others.map((t, i) => html`<${TurnLine} key=${i} t=${t} now=${now}/>`)}/>`;
+  const strip = html`<${Strip} rows=${stripRows(r)} now=${others.map((t, i) => html`<${TurnLine} key=${i} t=${t} now=${now}/>`)}/>`;
   return html`<div className="mpage">
     <${ModalHead} title=${html`${r.title}${r.seats > 1 && html`<small className="num">× ${r.seats}</small>`}`} sub=${r.dept + ' / ' + r.project} badge=${Model.statusText(r)} stop=${stopped} strip=${strip}>
       ${p.cancel && html`<div className="m-more">

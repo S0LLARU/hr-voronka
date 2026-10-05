@@ -334,6 +334,20 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 .act{display:flex;flex-direction:column;gap:12px;margin-top:12px}
 .now.is-mine > .row{margin-top:8px}
 .hire-h:first-child{margin-top:0;padding-top:0;border-top:0}
+.hire + .hire{margin-top:18px}
+.past{margin-top:14px;border-top:1px solid var(--line)}
+.hire > .past:first-child{margin-top:0;border-top:0}
+.past details{border-bottom:1px solid var(--line)}
+.past summary{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;padding:10px 0;cursor:pointer;list-style:none}
+.past summary::-webkit-details-marker{display:none}
+.past summary::before{content:"";align-self:center;width:6px;height:6px;margin-right:2px;border-right:1.5px solid var(--ink-3);border-bottom:1.5px solid var(--ink-3);transform:rotate(-45deg);transition:transform .15s}
+.past details[open] summary::before{transform:rotate(45deg)}
+.past-t{font-weight:500}
+.past-b{padding:0 0 12px 18px}
+.rp-row{display:flex;align-items:center;gap:10px;min-width:0}
+.rp-row + .rp-row{margin-top:8px}
+.rp-row .rp{flex:1;min-width:0}
+.rp-row .rp-hn{flex:none;margin:0}
 .secs > .sec + .sec{margin-top:18px}
 .more-h{padding-top:12px;border-top:1px solid var(--line)}
 .more-h .tl-wrap{margin-top:10px}
