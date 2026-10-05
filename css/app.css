@@ -285,6 +285,16 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 .tl-more:hover{background:var(--hover)}
 
 .scrim{position:fixed;inset:0;z-index:40;background:rgba(17,17,19,.24)}
+.scrim.is-modal{background:rgba(17,17,19,.32)}
+
+/* ---------- модальное окно: заявка, кандидат, форма ---------- */
+.modal{position:fixed;z-index:41;top:28px;bottom:28px;left:50%;width:min(1240px,calc(100vw - 56px));margin-left:calc(min(1240px,calc(100vw - 56px)) / -2);
+  display:flex;flex-direction:column;border-radius:18px;background:var(--bg);box-shadow:0 0 0 1px rgba(17,17,19,.06),0 24px 64px rgba(17,17,19,.22)}
+.modal.is-narrow{width:min(900px,calc(100vw - 56px));margin-left:calc(min(900px,calc(100vw - 56px)) / -2)}
+.m-bar{display:flex;align-items:center;gap:10px;height:58px;padding:0 14px 0 28px;border-bottom:1px solid var(--line);flex:none}
+.m-body{flex:1;min-height:0;overflow-y:auto;border-radius:0 0 18px 18px}
+.modal .page{max-width:none;padding:24px 28px 32px}
+.modal .page.is-narrow{grid-template-columns:minmax(0,1fr);padding-bottom:0}
 
 @media (max-width:1180px){
   .board{grid-template-columns:repeat(5,250px)}
@@ -295,6 +305,7 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
   .side{display:none}
   .app.is-drawer .side{display:flex;position:fixed;z-index:50;top:0;bottom:0;left:0;width:min(300px,86vw)}
   .page{grid-template-columns:minmax(0,1fr)}
+  .modal,.modal.is-narrow{top:12px;bottom:12px;width:calc(100vw - 24px);margin-left:calc((100vw - 24px) / -2)}
 }
 @media (max-width:720px){
   .bar{height:56px;padding:0 12px 0 8px}
@@ -307,7 +318,10 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
   .search{flex:1 1 100%;width:auto;margin-left:0;order:2}
   .board{padding:0 16px 16px;grid-template-columns:repeat(5,82vw);scroll-snap-type:x mandatory;scroll-padding:0 16px}
   .col{scroll-snap-align:start}
-  .page,.page.is-narrow{padding:16px 12px 32px;gap:12px}
+  .modal,.modal.is-narrow{top:0;bottom:0;width:100vw;margin-left:-50vw;border-radius:0}
+  .m-body{border-radius:0}
+  .m-bar{height:56px;padding:0 8px 0 16px}
+  .page,.page.is-narrow,.modal .page,.modal .page.is-narrow{padding:16px 12px 32px;gap:12px}
   .pg-main,.pg-side{gap:12px}
   .box{padding:18px 16px}
   .p-title{font-size:20px}

@@ -93,15 +93,15 @@ function useMenu(){
 const Anim = {
   reduced: () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches),
   on: () => !!(window.Motion && Motion.animate) && !Anim.reduced(),
-  panelIn(el, scrim){
+  modalIn(el, scrim){
     if(!Anim.on() || !el) return;
-    Motion.animate(el, {transform:['translateX(56px)','translateX(0px)'], opacity:[0,1]}, {type:'spring', visualDuration:.36, bounce:0, opacity:{duration:.12}});
+    Motion.animate(el, {transform:['translateY(12px) scale(.985)','translateY(0px) scale(1)'], opacity:[0,1]}, {type:'spring', visualDuration:.32, bounce:0, opacity:{duration:.14}});
     if(scrim) Motion.animate(scrim, {opacity:[0,1]}, {duration:.2, ease:'easeOut'});
   },
-  panelOut(el, scrim){
+  modalOut(el, scrim){
     if(!Anim.on() || !el) return Promise.resolve();
     if(scrim) Motion.animate(scrim, {opacity:[1,0]}, {duration:.16});
-    return Motion.animate(el, {transform:['translateX(0px)','translateX(56px)'], opacity:[1,0]}, {duration:.16, ease:[.4,0,1,1]}).then(() => {}, () => {});
+    return Motion.animate(el, {transform:['translateY(0px) scale(1)','translateY(8px) scale(.985)'], opacity:[1,0]}, {duration:.14, ease:[.4,0,1,1]}).then(() => {}, () => {});
   },
   page(el){
     if(!Anim.on() || !el) return;

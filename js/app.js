@@ -1,4 +1,5 @@
-/* Приложение: меню слева, полоса с крошками сверху, под ней доска или открытая страница.
+/* Приложение: меню слева, полоса сверху, под ней доска. Заявка, кандидат и форма открываются
+   модальным окном поверх доски, поэтому после решения видно, как карточка переезжает.
    Адрес отражает, что открыто: #/r/<заявка>, #/r/<заявка>/c/<кандидат>, #/r/<заявка>/add,
    #/r/<заявка>/edit, #/new — ссылку можно отправить, назад работает. */
 'use strict';
@@ -77,10 +78,8 @@ function BoardPage({S, v, now, focusId}){
   const mineCount = visible.filter(r => isMine(r, v)).length;
   const list = visible.filter(r => match(r) && (!onlyMine || isMine(r, v)));
   useEffect(() => { if(onlyMine && !mineCount) setOnlyMine(false); }, [v, mineCount]);
-  /* вернулись из заявки — фокус на её карточке */
-  useEffect(() => { const c = focusId && document.querySelector('[data-card="' + focusId + '"]'); if(c) c.focus({preventScroll:false}); }, []);
   return html`<div className="board-page">
-    <h1 className="sr" tabIndex="-1" data-autofocus=${focusId ? undefined : 'true'}>Заявки на подбор</h1>
+    <h1 className="sr">Заявки на подбор</h1>
     <div className="tools">
       <div className="pills" role="group" aria-label="Какие заявки показать">
         <button aria-pressed=${!onlyMine} onClick=${() => setOnlyMine(false)}>Все <span className="n num">${visible.length}</span></button>
@@ -106,61 +105,86 @@ function App(){
   };
   const nav = h => { setDrawer(false); Panel.leave(() => go(h)); };
 
+  /* ---------- модальное окно поверх доски ---------- */
   const req = route.id ? S.requests.find(r => r.id === route.id && Model.visible(r, v)) : null;
-  const lastId = useRef(null);
-  if(route.id && req) lastId.current = route.id;
-  useEffect(() => { if(route.id && !req) go('#/'); }, [hash, !!req]);
-  useEffect(() => { setDrawer(false); if(!route.form) Panel.leave = f => f(); }, [hash]);
+  const open = !!(route.form === 'new' || req);
+  const [shown, setShown] = useState(open ? route : null);
+  const lastId = useRef(null), modal = useRef(null), scrim = useRef(null), main = useRef(null), body = useRef(null), wasShown = useRef(false);
+  useEffect(() => {
+    setDrawer(false);
+    if(open){ setShown(route); if(route.id) lastId.current = route.id; return; }
+    if(route.id && !req){ go('#/'); return; }
+    if(shown){
+      Anim.modalOut(modal.current, scrim.current).then(() => setShown(null));
+    }
+  }, [hash, !!req]);
+  useLayoutEffect(() => {
+    if(shown && !wasShown.current) Anim.modalIn(modal.current, scrim.current);
+    wasShown.current = !!shown;
+    if(main.current){ if(shown) main.current.setAttribute('inert', ''); else main.current.removeAttribute('inert'); }
+    /* окно закрыто — фокус на карточке заявки, которая была открыта */
+    if(!shown){ const c = lastId.current && document.querySelector('[data-card="' + lastId.current + '"]'); if(c) c.focus({preventScroll:false}); }
+  }, [!!shown]);
 
   /* Esc — на уровень выше: из кандидата в заявку, из заявки на доску */
-  const up = route.form ? (route.id ? '#/r/' + route.id : '#/') : route.view === 'cand' || route.view === 'add' ? '#/r/' + route.id : route.id ? '#/' : null;
+  const up = !shown ? null : shown.form ? (shown.id ? '#/r/' + shown.id : '#/') : shown.view === 'cand' || shown.view === 'add' ? '#/r/' + shown.id : '#/';
   useEffect(() => {
     if(!up) return;
     const key = e => { if(e.key === 'Escape' && !e.defaultPrevented && !e.target.closest('.menu')){ e.preventDefault(); Panel.leave(() => go(up)); } };
     addEventListener('keydown', key); return () => removeEventListener('keydown', key);
   }, [up]);
+  const close = () => Panel.leave(() => go('#/'));
 
-  /* смена страницы: короткое появление и фокус на заголовке */
-  const content = useRef(null), pageKey = route.form ? 'form' + (route.id || '') : route.id ? route.id + (route.view || '') + (route.cid || '') : 'board';
+  /* смена содержимого окна: прокрутка наверх, короткое появление, фокус на заголовке */
+  const key = shown ? (shown.form ? 'form' + (shown.id || '') : shown.id + (shown.view || '') + (shown.cid || '')) : '';
+  const prevKey = useRef('');
   useLayoutEffect(() => {
-    if(!content.current) return;
-    content.current.scrollTop = 0;
-    Anim.page(content.current.firstElementChild);
-    const f = content.current.querySelector('[data-autofocus]'); if(f) f.focus({preventScroll:true});
-  }, [pageKey]);
+    if(!shown || !body.current) return;
+    body.current.scrollTop = 0;
+    if(prevKey.current) Anim.page(body.current.firstElementChild);
+    prevKey.current = key;
+    const f = body.current.querySelector('[data-autofocus]'); if(f) f.focus({preventScroll:true});
+  }, [key]);
+  useEffect(() => { if(!shown) prevKey.current = ''; }, [!!shown]);
 
-  const home = ['Заявки на подбор', '#/'];
-  let crumbs = [['Заявки на подбор']], page;
-  if(route.form){
-    const fr = route.form === 'edit' ? req : null;
-    if(route.form === 'edit' && !fr) page = null;
-    else {
-      crumbs = fr ? [home, [fr.title, '#/r/' + fr.id], [fr.status === 'draft' ? 'Черновик' : 'Доработка']] : [home, ['Новая заявка']];
-      page = html`<${RequestForm} key=${pageKey} r=${fr} onClose=${id => { Panel.leave = f => f(); go(id ? '#/r/' + id : '#/'); }}/>`;
-    }
-  } else if(req){
-    const c = route.cid && req.candidates.find(x => x.id === route.cid);
-    crumbs = [home, [req.title, route.view === 'main' ? null : '#/r/' + req.id]];
-    if(route.view === 'cand') crumbs.push([c ? c.name : 'Кандидат']);
-    if(route.view === 'add') crumbs.push(['Новый кандидат']);
-    if(route.view === 'main') crumbs[1] = [req.title];
-    page = html`<${RequestPage} key=${req.id} r=${req} view=${route.view} cid=${route.cid}/>`;
-  } else if(!route.id){
-    page = html`<${BoardPage} S=${S} v=${v} now=${now} focusId=${lastId.current}/>`;
+  const sr = shown && shown.id ? S.requests.find(r => r.id === shown.id) : null;
+  let crumbs = [], content = null, wide = true, label = '';
+  if(shown && shown.form){
+    const fr = shown.form === 'edit' ? sr : null;
+    wide = false; label = fr ? fr.title : 'Новая заявка';
+    crumbs = fr ? [[fr.title, '#/r/' + fr.id], [fr.status === 'draft' ? 'Черновик' : 'Доработка']] : [];
+    if(shown.form === 'new' || fr) content = html`<${RequestForm} key=${key} r=${fr} onClose=${id => { Panel.leave = f => f(); go(id ? '#/r/' + id : '#/'); }}/>`;
+  } else if(sr){
+    const c = shown.cid && sr.candidates.find(x => x.id === shown.cid);
+    label = sr.title; wide = shown.view !== 'add';
+    crumbs = shown.view === 'main' ? [] : [[sr.title, '#/r/' + sr.id], [shown.view === 'add' ? 'Новый кандидат' : c ? c.name : 'Кандидат']];
+    content = html`<${RequestPage} key=${sr.id} r=${sr} view=${shown.view} cid=${shown.cid}/>`;
   }
   const canCreate = me.role === 'manager' || me.role === 'hrd';
 
   return html`<div className=${'app' + (side ? '' : ' is-collapsed') + (drawer ? ' is-drawer' : '')}>
-    <${Sidebar} onNav=${nav}/>
-    ${drawer && html`<div className="scrim" onClick=${() => setDrawer(false)}/>`}
-    <div className="main">
-      <header className="bar">
-        <button className="icon-btn" aria-label=${side && !drawer ? 'Скрыть меню' : 'Показать меню'} aria-expanded=${narrow() ? drawer : side} onClick=${toggleSide}><${Icon} n="side" s=${18}/></button>
-        <${Crumbs} items=${crumbs}/>
-        ${canCreate && !route.form && html`<${Btn} kind="primary" aria-label="Создать заявку" onClick=${() => nav('#/new')}><${Icon} n="plus"/><span className="hide-s">Создать заявку</span><//>`}
-      </header>
-      <main className="content" ref=${content}>${page}</main>
+    <div ref=${main} style=${{display:'contents'}}>
+      <${Sidebar} onNav=${nav}/>
+      ${drawer && html`<div className="scrim" onClick=${() => setDrawer(false)}/>`}
+      <div className="main">
+        <header className="bar">
+          <button className="icon-btn" aria-label=${side && !drawer ? 'Скрыть меню' : 'Показать меню'} onClick=${toggleSide}><${Icon} n="side" s=${18}/></button>
+          <${Crumbs} items=${[['Заявки на подбор']]}/>
+          ${canCreate && html`<${Btn} kind="primary" aria-label="Создать заявку" onClick=${() => nav('#/new')}><${Icon} n="plus"/><span className="hide-s">Создать заявку</span><//>`}
+        </header>
+        <main className="content"><${BoardPage} S=${S} v=${v} now=${now} focusId=${shown && shown.id}/></main>
+      </div>
     </div>
+    ${shown && html`<${Fragment}>
+      <div className="scrim is-modal" ref=${scrim} onClick=${close}/>
+      <div className=${'modal' + (wide ? '' : ' is-narrow')} ref=${modal} role="dialog" aria-modal="true" aria-label=${label}>
+        <div className="m-bar">
+          <${Crumbs} items=${crumbs}/>
+          <button className="icon-btn" aria-label="Закрыть" onClick=${close}><${Icon} n="x" s=${18}/></button>
+        </div>
+        <div className="m-body" ref=${body}>${content}</div>
+      </div>
+    <//>`}
   </div>`;
 }
 
