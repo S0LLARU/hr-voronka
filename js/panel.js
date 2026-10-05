@@ -1,6 +1,7 @@
-/* Открытая заявка. Сверху — что за вакансия и чей сейчас ход; если ход того, кто смотрит,
-   здесь же его решение. Ниже вкладки: путь заявки со всеми шагами и чек-листами,
-   кандидаты, сама заявка, история. */
+/* Открытая заявка. Под шапкой всегда полоса пути: где заявка и кто её держит.
+   Ниже — то, ради чего окно открыли на этом шаге: ваше решение, затем главное для фазы —
+   на согласовании сама заявка (кого ищем), в подборе кандидаты, на выходе сотрудник
+   и его чек-листы, в конце итог. История — отдельной вкладкой, по запросу. */
 'use strict';
 
 const go = h => { location.hash = h; };
@@ -89,7 +90,7 @@ function DecisionForm({r, h}){
 function MyTurn({r, t, setTab, tab, now}){
   const d = (type, p) => Store.dispatch(type, Object.assign({id:r.id}, p));
   const late = Model.late(t, now);
-  const waited = t.since ? 'Ждёт ' + Model.ago(t.since, now) : t.due ? (t.dueKind === 'выход' ? 'Выход ' : 'Срок — ') + Model.fmtDate(t.due) : '';
+  const waited = t.since && !t.ongoing ? 'Ждёт ' + Model.ago(t.since, now) : t.due ? (t.dueKind === 'выход' ? 'Выход ' : 'Срок — ') + Model.fmtDate(t.due) : '';
   const head = html`<div className="now-t">${t.mine}${t.hn ? ': ' + t.hn : ''}</div>${waited && html`<div className=${'now-m' + (late ? ' late' : '')}>${late && html`<${Icon} n="late" s=${14} label="Срок прошёл"/> `}${waited}</div>`}`;
   const box = body => html`<div className="now is-mine">${head}${body}</div>`;
   const h = t.h && r.hires.find(x => x.id === t.h);
@@ -104,15 +105,13 @@ function MyTurn({r, t, setTab, tab, now}){
       {label:'Принять и передать в Finance', kind:'primary', run:c => d('hrAccept', {comment:c})},
       {label:'Вернуть на доработку', ask:true, need:true, whom:'руководитель', note:RETURN_NOTE, run:c => d('hrReturn', {comment:c})}]}/>`);
     case 'finance': return box(html`
-      <${Facts} rows=${[['Зарплата', r.salary], ['Бонусы / KPI', r.bonus || 'Не указаны'], ['Количество', r.seats > 1 ? r.seats + ' человека' : ''],
-        ['Дата выхода', Model.fmtDate(r.start, true)], ['Причина', Model.REASONS[r.reason] + (r.reasonOther ? ': ' + r.reasonOther : '')], ['Комментарий HR', hrComment(r)]]}/>
+      <${Facts} rows=${[['Комментарий HR', hrComment(r)]]}/>
       <${Decide} actions=${[
         {label:'Согласовать и передать CEO', kind:'primary', run:c => d('finApprove', {comment:c})},
         {label:'Вернуть на доработку', ask:true, need:true, whom:'руководитель', note:RETURN_NOTE, run:c => d('finReturn', {comment:c})},
         {label:'Отклонить', kind:'danger', ask:true, need:true, whom:'руководитель', confirm:'Отклонить заявку', note:REJECT_NOTE, run:c => d('finReject', {comment:c})}]}/>`);
     case 'ceo': return box(html`
-      <${Facts} rows=${[['Руководитель', name(r.manager)], ['Причина', Model.REASONS[r.reason]], ['Зарплата', r.salary + (r.seats > 1 ? ' × ' + r.seats : '')],
-        ['Дата выхода', Model.fmtDate(r.start, true)], ['Комментарий HR', hrComment(r)], ['Finance', finComment(r)]]}/>
+      <${Facts} rows=${[['Комментарий HR', hrComment(r)], ['Finance', finComment(r)]]}/>
       <${Decide} actions=${[
         {label:'Одобрить поиск', kind:'primary', run:c => d('ceoApprove', {comment:c})},
         {label:'Отклонить', kind:'danger', ask:true, need:true, whom:'руководитель', confirm:'Отклонить заявку', note:REJECT_NOTE, run:c => d('ceoReject', {comment:c})}]}/>`);
@@ -126,14 +125,14 @@ function MyTurn({r, t, setTab, tab, now}){
 
   if(h.stage === 'prep'){
     const left = Model.listLeft(h.lists.prep);
-    if(Model.PEOPLE[Store.viewer()].role === 'it' || left) return box(html`<div className="row"><${Btn} onClick=${() => setTab('path', 'h-' + h.id)}>К чек-листу<//></div>`);
+    if(Model.PEOPLE[Store.viewer()].role === 'it' || left) return box(html`<div className="row"><${Btn} onClick=${() => setTab('hire', 'h-' + h.id)}>К чек-листу<//></div>`);
     return box(html`<div className="row"><${Btn} kind="primary" onClick=${() => d('started', {hid:h.id})}>Вышел на стажировку<//></div>`);
   }
   if(h.stage === 'intern') return box(html`<${DecisionForm} r=${r} h=${h}/>`);
   if(h.stage === 'docs'){
     const left = Model.listLeft(h.lists.docs);
     return box(html`<div className="row">${left
-      ? html`<${Btn} onClick=${() => setTab('path', 'h-' + h.id)}>К документам<//>`
+      ? html`<${Btn} onClick=${() => setTab('hire', 'h-' + h.id)}>К документам<//>`
       : html`<${Btn} kind="primary" onClick=${() => d('registered', {hid:h.id})}>Сотрудник официально оформлен<//>`}</div>`);
   }
   if(h.stage === 'fin' || h.stage === 'fot') return box(html`
@@ -146,14 +145,76 @@ function MyTurn({r, t, setTab, tab, now}){
   return null;
 }
 
-/* чужой ход: кто сейчас действует и сколько ждёт */
-function Waiting({t, now}){
-  const late = Model.late(t, now);
-  const meta = [name(t.p)];
-  if(t.since && !t.ongoing) meta.push('ждёт ' + Model.ago(t.since, now));
+/* ---------- полоса пути под шапкой ----------
+   Шаги одной строкой: пройдено, сейчас, впереди. Под ней — кто держит сейчас и сколько ждёт.
+   Свой ход здесь не повторяется: он ниже, с кнопкой. */
+const STATE_SR = {done:' — пройдено', now:' — сейчас', next:' — впереди', stop:' — остановлено', skip:' — пропущено'};
+function Strip({steps, now}){
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const ol = ref.current, el = ol && ol.querySelector('.is-now, .is-stop');
+    const over = ol && ol.scrollWidth > ol.clientWidth + 1;
+    if(ol) ol.classList.toggle('is-over', !!over);
+    if(el && over) ol.scrollLeft = Math.max(0, el.offsetLeft - 40);
+  });
+  return html`<div className="strip">
+    <ol className="rp" ref=${ref} aria-label="Путь">${steps.map(s => html`<li key=${s.k} className=${'is-' + s.state} title=${s.tip || null}>
+      <span className="rp-d" aria-hidden="true">${s.state === 'done' ? html`<${Icon} n="check" s=${10} w=${3}/>` : s.state === 'stop' ? html`<${Icon} n="x" s=${10} w=${3}/>` : null}</span>
+      <span className="rp-l">${s.label}</span><span className="sr">${STATE_SR[s.state]}${s.tip ? ', ' + s.tip : ''}</span>
+    </li>`)}</ol>
+    ${now && now.length > 0 && html`<div className="rp-now">${now}</div>`}
+  </div>`;
+}
+
+const BLANK = {status:'draft', log:[], publications:[], hires:[], candidates:[], seats:1};
+function reqSteps(r){
+  const last = s => r.log.filter(x => x.step === s).pop();
+  const tip = l => l ? shortName(l.by) + ', ' + Model.fmtDateTime(l.at) : '';
+  const st = r.status, pre = st === 'draft' || st === 'returned', stopped = st === 'rejected' || st === 'cancelled';
+  const stopAt = stopped ? r.log.filter(x => x.step === 'reject' || x.step === 'cancel').pop() : null;
+  const finStop = stopAt && stopAt.step === 'reject' && stopAt.by === Model.FIN, ceoStop = stopAt && stopAt.step === 'reject' && stopAt.by === Model.CEO;
+  const sent = last('sent'), hr = last('hr'), fin = last('finance'), ceo = last('ceo'), tk = last('take');
+  const hs = Model.activeHires(r), n = r.seats, cnt = l => hs.filter(h => l.includes(h.stage)).length;
+  const pubs = r.publications || [];
+  let s = [
+    {k:'req', label:'Заявка', state:pre ? 'now' : 'done', tip:!pre && tip(sent)},
+    {k:'hr', label:'HR', state:st === 'hr' ? 'now' : hr && !pre ? 'done' : 'next', tip:!pre && tip(hr)},
+    {k:'fin', label:'Finance', state:finStop ? 'stop' : st === 'finance' ? 'now' : fin && !pre ? 'done' : 'next', tip:finStop ? tip(stopAt) : !pre && tip(fin)},
+    {k:'ceo', label:'CEO', state:ceoStop ? 'stop' : st === 'ceo' ? 'now' : ceo ? 'done' : 'next', tip:ceoStop ? tip(stopAt) : tip(ceo)},
+    {k:'rec', label:'Рекрутер', state:tk ? 'done' : st === 'assign' || st === 'assigned' ? 'now' : 'next', tip:r.recruiter ? name(r.recruiter) : ''},
+    {k:'search', label:'Подбор', state:hs.length >= n ? 'done' : st === 'inwork' || st === 'published' ? 'now' : 'next',
+      tip:pubs.map(x => x.platform + ' ' + Model.fmtDate(x.date)).join(', ')},
+    {k:'start', label:'Выход', state:cnt(['prep','intern']) ? 'now' : cnt(['docs','fin','fot','done']) >= n ? 'done' : 'next'},
+    {k:'docs', label:'Оформление', state:cnt(['docs']) ? 'now' : cnt(['fin','fot','done']) >= n ? 'done' : 'next'},
+    {k:'fot', label:'ФОТ', state:cnt(['fin','fot']) ? 'now' : cnt(['done']) >= n ? 'done' : 'next'},
+    {k:'closed', label:'Закрыто', state:st === 'closed' ? 'done' : 'next', tip:st === 'closed' && Model.fmtDate(r.closedAt, true)}
+  ];
+  if(stopped){
+    s = s.filter(x => x.state !== 'next');
+    if(st === 'cancelled') s.push({k:'stop', label:'Отменена', state:'stop', tip:tip(stopAt)});
+  }
+  return s;
+}
+/* кто держит сейчас: «Ждёт Finance: Ринат Оспанов, 1 день» */
+function TurnLine({t, now}){
+  const late = Model.late(t, now), meta = [name(t.p)];
+  if(t.since && !t.ongoing) meta.push(Model.ago(t.since, now));
   if(t.due) meta.push((t.dueKind === 'выход' ? 'выход ' : 'срок ') + Model.fmtDate(t.due));
   if(t.count) meta.push(t.count[0] + ' из ' + t.count[1]);
-  return html`<div className="now"><div className="now-t">${t.full || t.text}${t.hn ? ': ' + t.hn : ''}</div><div className=${'now-m' + (late ? ' late' : '')}>${late && html`<${Icon} n="late" s=${14} label="Срок прошёл"/> `}${meta.join(', ')}</div></div>`;
+  return html`<span className=${'rp-turn' + (late ? ' late' : '')}>${late && html`<${Icon} n="late" s=${14} label="Срок прошёл"/>`}<b>${t.full || t.text}${t.hn ? ', ' + t.hn : ''}:</b> ${meta.join(', ')}</span>`;
+}
+
+const C_STEPS = [['new','Новый'], ['hr','Интервью HR'], ['test','Тестовое'], ['mgr','Руководитель'], ['offer','Оффер'], ['accepted','Согласился']];
+function candSteps(c){
+  const rej = c.stage === 'rejected', at = rej ? c.reject.from : c.stage === 'approved' ? 'offer' : c.stage;
+  let pos = C_STEPS.findIndex(x => x[0] === at);
+  if(pos < 0 || (!rej && at === 'accepted')) pos = C_STEPS.length;
+  const tested = (c.timeline || []).some(x => x.text.startsWith('Отправлено тестовое'));
+  let s = C_STEPS.map(([k, label], j) => ({k, label,
+    state:j < pos ? (k === 'test' && !tested ? 'skip' : 'done') : j === pos ? (rej ? 'stop' : 'now') : 'next',
+    tip:k === 'test' && j < pos && !tested ? 'пропущено' : ''}));
+  if(rej){ s = s.filter(x => x.state !== 'next'); if(pos === C_STEPS.length) s.push({k:'stop', label:'Отказ', state:'stop'}); }
+  return s;
 }
 
 /* ---------- путь заявки ---------- */
@@ -189,91 +250,36 @@ function Step({state, title, meta, quote, children, id}){
   </li>`;
 }
 
-function PathTab({r, v, now, focus}){
-  const ref = useRef(null);
-  useEffect(() => { if(focus){ const el = document.getElementById(focus); if(el){ el.scrollIntoView({block:'start', behavior:Anim.on() ? 'smooth' : 'auto'}); } } }, [focus]);
-  const last = s => r.log.filter(x => x.step === s).pop();
-  const by = l => l ? name(l.by) + ', ' + Model.fmtDateTime(l.at) : '';
-  const order = ['draft','returned','hr','finance','ceo','assign','assigned','inwork','published'];
-  const pos = order.indexOf(r.status);
-  const stopped = r.status === 'rejected' || r.status === 'cancelled';
-  const stopAt = stopped ? r.log.filter(x => x.step === 'reject' || x.step === 'cancel').pop() : null;
-  const reached = k => r.log.some(x => x.step === k);
-  const st = (doneKey, nowCond) => reached(doneKey) && !nowCond ? 'done' : nowCond ? 'now' : 'next';
-  const editC = Model.perms(r, v).editCandidates;
-  const steps = [];
-
-  const sent = last('sent');
-  steps.push(html`<${Step} key="req" state=${sent && r.status !== 'draft' && r.status !== 'returned' ? 'done' : 'now'} title="Заявка"
-    meta=${sent ? name(r.initiator) + ', ' + Model.fmtDateTime(sent.at) : 'Черновик'}
-    quote=${r.status === 'returned' ? r.returned.comment : ''}/>`);
-  const hr = last('hr');
-  steps.push(html`<${Step} key="hr" state=${r.status === 'hr' ? 'now' : hr && pos !== 1 ? 'done' : stopped && !hr && reached('sent') ? 'stop' : 'next'} title="Проверка HR" meta=${hr && r.status !== 'hr' ? by(hr) : r.status === 'hr' ? name(Model.HRD) : ''} quote=${hr && hr.comment}/>`);
-  const fin = last('finance');
-  const finStop = stopAt && stopAt.by === Model.FIN;
-  steps.push(html`<${Step} key="fin" state=${finStop ? 'stop' : r.status === 'finance' ? 'now' : fin && r.status !== 'returned' ? 'done' : 'next'} title=${finStop ? 'Finance отклонил' : 'Finance'}
-    meta=${finStop ? by(stopAt) : fin ? by(fin) : r.status === 'finance' ? name(Model.FIN) : ''} quote=${finStop ? stopAt.comment : fin && fin.comment}/>`);
-  const ceo = last('ceo');
-  const ceoStop = stopAt && stopAt.by === Model.CEO;
-  steps.push(html`<${Step} key="ceo" state=${ceoStop ? 'stop' : r.status === 'ceo' ? 'now' : ceo ? 'done' : 'next'} title=${ceoStop ? 'CEO отклонил' : 'CEO'}
-    meta=${ceoStop ? by(stopAt) : ceo ? by(ceo) : r.status === 'ceo' ? name(Model.CEO) : ''} quote=${ceoStop ? stopAt.comment : ceo && ceo.comment}/>`);
-  if(stopAt && stopAt.step === 'cancel') steps.push(html`<${Step} key="cancel" state="stop" title="Заявка отменена" meta=${by(stopAt)} quote=${r.cancel.reason + (r.cancel.comment ? '. ' + r.cancel.comment : '')}/>`);
-  if(!stopped){
-    const as = last('assign'), tk = last('take');
-    steps.push(html`<${Step} key="rec" state=${tk ? 'done' : (r.status === 'assign' || r.status === 'assigned') ? 'now' : 'next'} title=${r.recruiter ? 'Рекрутер: ' + name(r.recruiter) : 'Рекрутер'}
-      meta=${tk ? 'Назначила ' + shortName(as.by) + ' ' + Model.fmtDate(as.at) + ', в работе с ' + Model.fmtDate(tk.at) + (r.deadline ? ', срок ' + Model.fmtDate(r.deadline) : '')
-        : as ? 'Назначен ' + Model.fmtDate(as.at) + ', ещё не взял в работу' : r.status === 'assign' ? 'Назначает ' + name(Model.HRD) : ''}/>`);
-    const pubs = r.publications;
-    steps.push(html`<${Step} key="pub" state=${pubs.length ? 'done' : r.status === 'inwork' ? 'now' : 'next'} title="Публикация"
-      meta=${pubs.length ? '' : ''}>
-      ${pubs.length ? html`<ul className="files">${pubs.map((p, i) => html`<li key=${i}><span>${p.platform}</span><small className="num">${Model.fmtDate(p.date)}</small>
-        ${p.link && html`<a href=${p.link} target="_blank" rel="noopener">ссылка</a>`}${p.comment && html`<small>${p.comment}</small>`}</li>`)}</ul>` : null}
-      ${pubs.length && editC && r.status === 'published' ? html`<details><summary className="muted" style=${{cursor:'pointer', marginTop:6}}>Добавить площадку</summary><${PublishForm} r=${r} more=${true}/></details>` : null}
-    <//>`);
-    const hires = Model.activeHires(r), nC = r.candidates.length;
-    const searching = r.status === 'published' && hires.length < r.seats;
-    steps.push(html`<${Step} key="search" state=${hires.length >= r.seats ? 'done' : searching ? 'now' : 'next'} title="Подбор"
-      meta=${nC ? nC + ' ' + Model.plural(nC, 'кандидат','кандидата','кандидатов') + (r.seats > 1 ? ', выбрано ' + hires.length + ' из ' + r.seats : hires.length ? ', выбран ' + hires[0].name : '') : ''}/>`);
-  }
-
-  const hireSteps = r.hires.filter(h => h.stage !== 'dropped' || true).map(h => {
+/* сотрудник: путь каждого выбранного от подготовки выхода до ФОТ, чек-листы в своих шагах */
+function HireTab({r, v, focus}){
+  useEffect(() => { if(focus){ const el = document.getElementById(focus); if(el) el.scrollIntoView({block:'start', behavior:Anim.on() ? 'smooth' : 'auto'}); } }, [focus]);
+  return html`<div>${r.hires.map(h => {
     const s = h.stage, idx = ['prep','intern','docs','fin','fot','done'].indexOf(s), dropped = s === 'dropped';
-    const S = (i) => dropped ? (i < 1 ? 'done' : i === 1 ? 'stop' : 'next') : idx > i ? 'done' : idx === i ? 'now' : 'next';
+    const S = i => dropped ? (i < 1 ? 'done' : i === 1 ? 'stop' : 'next') : idx > i ? 'done' : idx === i ? 'now' : 'next';
     const dec = h.decision;
+    const fold = (list, label) => html`<details><summary className="muted" style=${{cursor:'pointer'}}>${label}: ${h.lists[list].filter(i => i.done).length} из ${h.lists[list].length}</summary><${Checklist} r=${r} h=${h} list=${list} v=${v}/></details>`;
     return html`<${Fragment} key=${h.id}>
       <div className="hire-h" id=${'h-' + h.id}>${h.name}</div>
       <ol className="path">
         <${Step} state=${S(0)} title="Подготовка к выходу" meta=${'Согласился ' + Model.fmtDate(h.chosen) + ', выход ' + Model.fmtDate(h.start)}>
-          ${(s === 'prep') && html`<${Checklist} r=${r} h=${h} list="prep" v=${v}/>`}
-          ${s !== 'prep' && html`<details><summary className="muted" style=${{cursor:'pointer'}}>Чек-лист: ${h.lists.prep.filter(i => i.done).length} из ${h.lists.prep.length}</summary><${Checklist} r=${r} h=${h} list="prep" v=${v}/></details>`}
+          ${s === 'prep' ? html`<${Checklist} r=${r} h=${h} list="prep" v=${v}/>` : fold('prep', 'Чек-лист')}
         <//>
         <${Step} state=${S(1)} title=${dropped ? 'Не продолжаем после стажировки' : 'Стажировка'}
-          meta=${h.internStart ? 'С ' + Model.fmtDate(h.internStart) + (s === 'intern' ? ', решение до ' + Model.fmtDate(h.decideBy) : dec ? ', решение ' + Model.fmtDate(dec.at) + ' — ' + shortName(dec.by) : '') : ''}
+          meta=${h.internStart ? 'С ' + Model.fmtDate(h.internStart) + (s === 'intern' ? ', решение до ' + Model.fmtDate(h.decideBy) : dec ? ', решение ' + Model.fmtDate(dec.at) + ', ' + shortName(dec.by) : '') : ''}
           quote=${dec && dec.comment}>
-          ${h.lists.day1 && html`${s === 'intern' ? html`<${Checklist} r=${r} h=${h} list="day1" v=${v}/>`
-            : html`<details><summary className="muted" style=${{cursor:'pointer'}}>Первый день: ${h.lists.day1.filter(i => i.done).length} из ${h.lists.day1.length}</summary><${Checklist} r=${r} h=${h} list="day1" v=${v}/></details>`}`}
+          ${h.lists.day1 && (s === 'intern' ? html`<${Checklist} r=${r} h=${h} list="day1" v=${v}/>` : fold('day1', 'Первый день'))}
         <//>
         ${!dropped && html`
         <${Step} state=${S(2)} title="Оформление" meta=${h.hiredAt ? 'Официально оформлен ' + Model.fmtDate(h.hiredAt, true) : ''}>
-          ${h.lists.docs && (s === 'docs' ? html`<${Checklist} r=${r} h=${h} list="docs" v=${v}/>`
-            : html`<details><summary className="muted" style=${{cursor:'pointer'}}>Документы: ${h.lists.docs.filter(i => i.done).length} из ${h.lists.docs.length}</summary><${Checklist} r=${r} h=${h} list="docs" v=${v}/></details>`)}
-          ${h.lists.onboarding && html`<details open=${s === 'fin' || s === 'fot'}><summary className="muted" style=${{cursor:'pointer', marginTop:8}}>Onboarding: ${h.lists.onboarding.filter(i => i.done).length} из ${h.lists.onboarding.length}</summary><${Checklist} r=${r} h=${h} list="onboarding" v=${v}/></details>`}
+          ${h.lists.docs && (s === 'docs' ? html`<${Checklist} r=${r} h=${h} list="docs" v=${v}/>` : fold('docs', 'Документы'))}
+          ${h.lists.onboarding && html`<details open=${(s === 'fin' || s === 'fot') && Model.PEOPLE[v].role !== 'finance'}><summary className="muted" style=${{cursor:'pointer', marginTop:8}}>Onboarding: ${h.lists.onboarding.filter(i => i.done).length} из ${h.lists.onboarding.length}</summary><${Checklist} r=${r} h=${h} list="onboarding" v=${v}/></details>`}
         <//>
         <${Step} state=${idx >= 3 ? (s === 'done' ? 'done' : 'now') : 'next'} title="Finance: учесть в ФОТ"
           meta=${h.fotAt ? 'Учтено ' + Model.fmtDateTime(h.fotAt.at) + ', ' + shortName(h.fotAt.by) : h.finAccepted ? 'Принято в работу ' + Model.fmtDateTime(h.finAccepted.at) : s === 'fin' ? 'Уведомление отправлено ' + Model.fmtDateTime(h.hiredAt) : ''}
           quote=${h.fotAt && h.fotAt.comment}/>`}
       </ol>
     <//>`;
-  });
-
-  const closed = r.status === 'closed';
-  return html`<div ref=${ref}>
-    <ol className="path">${steps}</ol>
-    ${hireSteps}
-    ${!stopped && html`<ol className="path" style=${{marginTop:hireSteps.length ? 4 : 0}}>
-      <${Step} state=${closed ? 'done' : 'next'} title="Заявка закрыта" meta=${closed ? Model.fmtDate(r.closedAt, true) + ', за ' + Model.days(r.created, r.closedAt) + ' ' + Model.plural(Model.days(r.created, r.closedAt), 'день','дня','дней') : r.seats > 1 ? 'Когда все ' + r.seats + ' человека учтены в ФОТ' : 'Когда сотрудник учтён в ФОТ'}/>
-    </ol>`}
-  </div>`;
+  })}</div>`;
 }
 
 /* ---------- кандидаты ---------- */
@@ -291,8 +297,13 @@ function CandidatesTab({r, v, now}){
       <span className=${'cand-s' + (mine || (c.stage === 'approved' && p.editCandidates) ? ' is-mine' : '') + (late ? ' late' : '')}>${late && !mine ? html`<${Icon} n="late" s=${13} label="Срок ответа прошёл"/> ` : ''}${s}</span>
     </button>`;
   };
+  const pubs = r.publications;
   return html`<div>
     ${p.editCandidates && Model.activeHires(r).length < r.seats && html`<div className="row" style=${{marginBottom:16}}><${Btn} onClick=${() => go('#/r/' + r.id + '/add')}><${Icon} n="plus"/>Добавить кандидата<//></div>`}
+    ${pubs.length > 0 && html`<div className="pubs"><span className="muted">Опубликована</span>
+      ${pubs.map((x, i) => html`<span key=${i}>${x.link ? html`<a href=${x.link} target="_blank" rel="noopener">${x.platform}</a>` : x.platform} <span className="muted num">${Model.fmtDate(x.date)}</span></span>`)}
+      ${p.editCandidates && r.status === 'published' && html`<details><summary className="muted" style=${{cursor:'pointer'}}>Добавить площадку</summary><${PublishForm} r=${r} more=${true}/></details>`}
+    </div>`}
     ${chosen.length > 0 && html`<div className="group"><div className="group-h">Выбраны <span className="num">${chosen.length}</span></div>
       ${chosen.map(c => { const h = r.hires.find(x => x.cid === c.id); return html`<button key=${c.id} className="cand" onClick=${() => go('#/r/' + r.id + '/c/' + c.id)}>
         <span className="cand-n">${c.name}</span><span className="cand-p">${c.position}</span>
@@ -330,7 +341,6 @@ function CandidateView({r, c, v, now}){
     if(c.stage === 'hr') actions = html`<div className="row"><${Btn} kind="primary" onClick=${() => d('move', {to:'mgr'})}>Передать руководителю<//><${Btn} onClick=${() => d('move', {to:'test'})}>Отправить тестовое<//></div>`;
     if(c.stage === 'test') actions = html`<div className="row"><${Btn} kind="primary" onClick=${() => d('move', {to:'mgr'})}>Передать руководителю<//>
       ${!c.timeline.some(x => x.text === 'Тестовое получено') && html`<${Btn} onClick=${() => d('note', {text:'Тестовое получено'})}>Тестовое получено<//>`}</div>`;
-    if(c.stage === 'mgr' && !manager) actions = html`<p className=${'muted' + (c.stageAt + Model.SLA.feedback < now ? ' late' : '')}>Ждёт ответа: ${name(r.manager)}, ${Model.ago(c.stageAt, now)}</p>`;
     if(c.stage === 'approved') actions = html`<div>
       <div className="grid2"><${Field} label="Оклад в оффере"><input className="inp" value=${offer.salary} onInput=${e => setOffer(Object.assign({}, offer, {salary:e.target.value}))}/><//>
         <${Field} label="Дата выхода"><input className="inp" type="date" value=${offer.start} onInput=${e => setOffer(Object.assign({}, offer, {start:e.target.value}))}/><//></div>
@@ -340,57 +350,72 @@ function CandidateView({r, c, v, now}){
       <div className="row"><${Btn} kind="primary" onClick=${() => d('accepted', {start:fromInput(start)})}>Согласился<//>
         <${Btn} kind="danger" onClick=${() => d('reject', {reason:'Отказался сам', comment:'Отказался от оффера'})}>Отказался от оффера<//></div></div>`;
   }
-  const mgrDecide = open && c.stage === 'mgr' && manager && html`<div className="now is-mine" style=${{marginTop:0, marginBottom:20}}>
+  const late = c.stage === 'mgr' && c.stageAt + Model.SLA.feedback < now;
+  const mgrDecide = open && c.stage === 'mgr' && manager && html`<div className="now is-mine">
     <div className="now-t">Ваш ответ по кандидату</div>
-    <div className=${'now-m' + (c.stageAt + Model.SLA.feedback < now ? ' late' : '')}>Ждёт ${Model.ago(c.stageAt, now)}</div>
+    <div className=${'now-m' + (late ? ' late' : '')}>Ждёт ${Model.ago(c.stageAt, now)}</div>
     <${Decide} actions=${[
       {label:'Одобрить', kind:'primary', ask:true, need:false, confirm:'Одобрить кандидата', run:x => d('feedback', {verdict:'approve', comment:x})},
       {label:'Отказать', kind:'danger', ask:true, need:true, whom:'рекрутер', confirm:'Отказать кандидату', run:x => d('feedback', {verdict:'reject', comment:x})}]}/>
   </div>`;
 
-  const hasTop = mgrDecide || actions || (open && editor && c.stage !== 'mgr') || rej || c.stage === 'rejected';
+  /* под полосой — у кого кандидат сейчас, если не у вас */
+  const h = r.hires.find(x => x.cid === c.id);
+  const cnow = [];
+  if(c.stage === 'mgr' && !manager) cnow.push(html`<span key="m" className=${'rp-turn' + (late ? ' late' : '')}>${late && html`<${Icon} n="late" s=${14} label="Срок прошёл"/>`}<b>Ждёт ответа руководителя:</b> ${name(r.manager)}, ${Model.ago(c.stageAt, now)}</span>`);
+  if(c.stage === 'approved' && !editor) cnow.push(html`<span key="a" className="rp-turn"><b>Рекрутер готовит оффер:</b> ${name(r.recruiter)}</span>`);
+  if(c.stage === 'offer') cnow.push(html`<span key="o" className="rp-turn"><b>Оффер отправлен</b> ${Model.fmtDate(c.offer.at)}, ${c.offer.salary}</span>`);
+  if(h) cnow.push(html`<span key="h" className="rp-turn"><b>${{prep:'Готовится к выходу', intern:'На стажировке', docs:'Оформляется', fin:'Оформлен', fot:'Оформлен', done:'В штате', dropped:'Не продолжили после стажировки'}[h.stage]}</b>${h.stage === 'prep' ? ', выход ' + Model.fmtDate(h.start) : ''}</span>`);
+
   const ckind = x => /одобрил$|согласил|Выбран|нанимаем/i.test(x.text) ? 'ok' : /отказ/i.test(x.text) ? 'stop' : 'ev';
   const ctimeline = c.timeline.map((x, i) => ({at:x.at, title:x.text, who:x.by ? whoLine(x.by) : '', kind:i === 0 ? 'new' : ckind(x)}));
-  return html`<div className="page">
-    <div className="pg-main">
-      <${ModalHead} title=${c.name} sub=${html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`} badge=${stageName} stop=${c.stage === 'rejected'}/>
-      ${hasTop && html`<section className="box">
-        ${mgrDecide}
-        ${actions && html`<div className="box-act">${actions}</div>`}
-        ${open && editor && c.stage !== 'mgr' && !rej && html`<div className="row" style=${{marginTop:12}}><${Btn} kind="ghost" className="btn-flush" onClick=${() => setRej(true)}>Отказать кандидату<//></div>`}
-        ${rej && html`<div className="now">
-          <${Field} label="Причина отказа" error=${err && !reason ? err : ''}><select className="inp" value=${reason} onChange=${e => { setReason(e.target.value); setErr(''); }}>
-            <option value="">Выберите</option>${Model.REJECT.map(x => html`<option key=${x}>${x}</option>`)}</select><//>
-          <${Field} label="Комментарий" optional=${reason !== 'Другое'} error=${err && reason ? err : ''}><textarea className="inp" rows="2" value=${rc} onInput=${e => { setRc(e.target.value); setErr(''); }}/><//>
-          <div className="row"><${Btn} kind="danger" onClick=${doReject}>Отказать<//><${Btn} kind="ghost" onClick=${() => { setRej(false); setErr(''); }}>Отмена<//></div>
-        </div>`}
-        ${c.stage === 'rejected' && html`<div className="now"><div className="now-t">Отказ: ${c.reject.reason.toLowerCase()}</div>
-          <div className="now-m">${name(c.reject.by)}, ${Model.fmtDateTime(c.reject.at)}</div>${c.reject.comment && html`<blockquote className="now-q">${c.reject.comment}</blockquote>`}</div>`}
-      </section>`}
-      <section className="box">
-        ${c.position && html`<p className="muted" style=${{margin:'0 0 18px'}}>${c.position}</p>`}
-        <section className="sec"><h2 className="sec-h">Контакты</h2>
-          <${Facts} rows=${[['Телефон', c.phone && html`<a href=${'tel:' + c.phone.replace(/\s/g, '')}>${c.phone}</a>`],
-            ['Telegram', c.tg && html`<a href=${'https://t.me/' + c.tg.replace('@', '')} target="_blank" rel="noopener">${c.tg}</a>`],
-            ['Почта', c.email && html`<a href=${'mailto:' + c.email}>${c.email}</a>`],
-            ['Резюме', c.resume && html`<a href=${c.resume} target="_blank" rel="noopener">Открыть</a>`]]}/>
-        </section>
-        ${[c.position, c.experience, c.expect, c.comment].some(Boolean) && html`<section className="sec"><h2 className="sec-h">О кандидате</h2>
-          <${Facts} rows=${[['Сейчас', c.position], ['Опыт', c.experience], ['Ожидания', c.expect], ['Комментарий рекрутера', c.comment]]}/>
-        </section>`}
-        ${c.feedback.length > 0 && html`<section className="sec"><h2 className="sec-h">Ответ руководителя</h2>
-          ${c.feedback.map((f, i) => html`<div key=${i} style=${{marginBottom:8}}><div>${f.verdict === 'approve' ? 'Одобрил' : 'Отказал'}: ${name(f.by)}, ${Model.fmtDate(f.at)}</div>${f.comment && html`<blockquote className="step-q">${f.comment}</blockquote>`}</div>`)}
-        </section>`}
-        <${Files} files=${c.files} can=${editor} onAdd=${fs => Store.dispatch('addFiles', {id:r.id, cid:c.id, files:fs})}/>
-      </section>
-    </div>
-    <aside className="pg-side">
-      <section className="box"><h2 className="box-t">История</h2><${Timeline} items=${ctimeline}/></section>
-      <section className="box"><h2 className="box-t">Информация</h2>
-        <${Info} rows=${[['Вакансия', r.title], ['Этап', stageName], ['На этапе с', Model.fmtDate(c.stageAt, true)], ['Источник', c.source], ['Добавлен', c.timeline[0] && Model.fmtDate(c.timeline[0].at, true)]]}/>
-      </section>
-    </aside>
+  const contacts = html`<section className="sec" key="contacts"><h2 className="sec-h">Контакты</h2>
+    <${Facts} rows=${[['Телефон', c.phone && html`<a href=${'tel:' + c.phone.replace(/\s/g, '')}>${c.phone}</a>`],
+      ['Telegram', c.tg && html`<a href=${'https://t.me/' + c.tg.replace('@', '')} target="_blank" rel="noopener">${c.tg}</a>`],
+      ['Почта', c.email && html`<a href=${'mailto:' + c.email}>${c.email}</a>`],
+      ['Резюме', c.resume && html`<a href=${c.resume} target="_blank" rel="noopener">Открыть</a>`]]}/>
+  </section>`;
+  const about = html`<section className="sec" key="about"><h2 className="sec-h">О кандидате</h2>
+    <${Facts} rows=${[['Сейчас', c.position], ['Опыт', c.experience], ['Ожидания', c.expect], ['Источник', c.source],
+      ['Комментарий рекрутера', c.comment && html`<p className="text">${c.comment}</p>`], ['Добавлен', c.timeline[0] && Model.fmtDate(c.timeline[0].at, true)]]}/>
+  </section>`;
+  const fb = c.feedback.length > 0 && html`<section className="sec" key="fb"><h2 className="sec-h">Ответ руководителя</h2>
+    ${c.feedback.map((f, i) => html`<div key=${i} style=${{marginBottom:8}}><div>${f.verdict === 'approve' ? 'Одобрил' : 'Отказал'}: ${name(f.by)}, ${Model.fmtDate(f.at)}</div>${f.comment && html`<blockquote className="step-q">${f.comment}</blockquote>`}</div>`)}
+  </section>`;
+  const files = html`<${Files} key="files" files=${c.files} can=${editor} onAdd=${fs => Store.dispatch('addFiles', {id:r.id, cid:c.id, files:fs})}/>`;
+  /* рекрутеру сначала контакты — он звонит; руководителю сначала кто это и что умеет */
+  const secs = editor ? [contacts, about, fb, files] : [about, fb, files, contacts];
+  const act = !mgrDecide && (actions || (open && editor && c.stage !== 'mgr') || rej);
+
+  return html`<div className="mpage">
+    <${ModalHead} title=${c.name} sub=${html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`} badge=${stageName} stop=${c.stage === 'rejected'}
+      strip=${html`<${Strip} steps=${candSteps(c)} now=${cnow}/>`}/>
+    ${mgrDecide}
+    ${act && html`<div className="act">
+      ${actions}
+      ${open && editor && c.stage !== 'mgr' && !rej && html`<div className="row"><${Btn} kind="ghost" className="btn-flush" onClick=${() => setRej(true)}>Отказать кандидату<//></div>`}
+      ${rej && html`<div className="now">
+        <${Field} label="Причина отказа" error=${err && !reason ? err : ''}><select className="inp" value=${reason} onChange=${e => { setReason(e.target.value); setErr(''); }}>
+          <option value="">Выберите</option>${Model.REJECT.map(x => html`<option key=${x}>${x}</option>`)}</select><//>
+        <${Field} label="Комментарий" optional=${reason !== 'Другое'} error=${err && reason ? err : ''}><textarea className="inp" rows="2" value=${rc} onInput=${e => { setRc(e.target.value); setErr(''); }}/><//>
+        <div className="row"><${Btn} kind="danger" onClick=${doReject}>Отказать<//><${Btn} kind="ghost" onClick=${() => { setRej(false); setErr(''); }}>Отмена<//></div>
+      </div>`}
+    </div>`}
+    ${c.stage === 'rejected' && html`<div className="now"><div className="now-t">Отказ: ${c.reject.reason.toLowerCase()}</div>
+      <div className="now-m">${name(c.reject.by)}, ${Model.fmtDateTime(c.reject.at)}</div>${c.reject.comment && html`<blockquote className="now-q">${c.reject.comment}</blockquote>`}</div>`}
+    <div className="secs">${secs}</div>
+    <${MoreHistory} items=${ctimeline}/>
   </div>`;
+}
+
+/* история кандидата свёрнута: нужна, когда разбираются, а не каждый раз */
+function MoreHistory({items}){
+  const [open, setOpen] = useState(false);
+  return html`<section className="more-h">
+    <button className="group-t" aria-expanded=${open} onClick=${() => setOpen(!open)}>История <span className="muted num">${items.length}</span>
+      <span style=${{transform:open ? 'rotate(180deg)' : '', display:'inline-flex'}}><${Icon} n="down" s=${14}/></span></button>
+    ${open && html`<${Timeline} items=${items} limit=${99}/>`}
+  </section>`;
 }
 
 /* файлы: в прототипе сохраняются название и размер, сам файл остаётся у вас */
@@ -425,7 +450,7 @@ function AddCandidate({r, onDone, onCancel, guard}){
     onDone(cid);
   };
   return html`<div className="page is-narrow">
-    <${ModalHead} title="Новый кандидат" sub=${html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`}/>
+    <${ModalHead} title="Новый кандидат" sub=${html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`} strip=${html`<${Strip} steps=${candSteps({stage:'new'})}/>`}/>
     <section className="box">
       <${Field} id="ac-name" label="ФИО" error=${err.name}><input className="inp" value=${f.name} onInput=${set('name')} autoComplete="off"/><//>
       <div className="grid2">
@@ -446,24 +471,51 @@ function AddCandidate({r, onDone, onCancel, guard}){
   </div>`;
 }
 
-/* ---------- заявка и история ---------- */
-function InfoTab({r, v}){
-  const p = Model.perms(r, v), canEdit = (r.status === 'draft' || r.status === 'returned') && r.initiator === v;
-  const sec = (t, rows) => html`<section className="sec"><h3 className="sec-h">${t}</h3><${Facts} rows=${rows}/></section>`;
+/* ---------- заявка: кого ищем ----------
+   Порядок под того, кто смотрит: Finance и CEO решают про деньги — им сначала условия,
+   остальным сначала, какой человек нужен. */
+function Brief({r, v, now}){
+  const p = Model.perms(r, v), role = Model.PEOPLE[v].role;
+  const txt = s => s && html`<p className="text">${s}</p>`;
+  const sec = (k, t, rows) => rows.some(x => x[1]) ? html`<section className="sec" key=${k}><h3 className="sec-h">${t}</h3><${Facts} rows=${rows}/></section>` : null;
+  const late = r.deadline && r.deadline < now && Model.phase(r) !== 'closed';
+  const who = sec('who', 'Кого ищем', [['Обязанности', txt(r.duties)], ['Требования', txt(r.reqs)], ['Опыт', r.experience], ['Навыки', r.skills],
+    ['Личные качества', r.personal], ['Образование', r.education], ['Дополнительно', r.extra], ['Сколько человек', r.seats > 1 ? String(r.seats) : '']]);
+  const cond = sec('cond', 'Условия', [['Зарплата', p.salary && r.salary], ['Бонусы / KPI', p.salary && r.bonus], ['Формат', [r.format, r.location].filter(Boolean).join(', ')],
+    ['График', r.schedule], ['Занятость', r.employment], ['Испытательный срок', r.probation], ['Желаемый выход', Model.fmtDate(r.start, true)]]);
+  const why = sec('why', 'Зачем открываем', [['Причина', Model.REASONS[r.reason] + (r.reasonOther ? ': ' + r.reasonOther : '')],
+    ['Приоритет', r.priority === 'high' ? 'Срочно' : ''], ['Комментарий руководителя', txt(r.comment)],
+    ['Файлы', r.files && r.files.length > 0 && html`<ul className="files">${r.files.map((f, i) => html`<li key=${i}><${Icon} n="clip" s=${15}/>${f.name}</li>`)}</ul>`]]);
+  const team = sec('team', 'Кто ведёт', [['Руководитель', name(r.manager)], ['Рекрутер', r.recruiter && name(r.recruiter)],
+    ['Срок закрытия', r.deadline && html`<span className=${'num' + (late ? ' late' : '')}>${late ? html`<${Icon} n="late" s=${14} label="Срок прошёл"/> ` : ''}${Model.fmtDate(r.deadline, true)}</span>`],
+    ['Создана', Model.fmtDate(r.created, true)]]);
+  const order = role === 'finance' || role === 'ceo' ? [cond, why, who, team] : [who, cond, why, team];
   return html`<div>
-    ${canEdit && html`<div className="row" style=${{marginBottom:16}}><${Btn} onClick=${() => go('#/r/' + r.id + '/edit')}>Изменить заявку<//></div>`}
-    ${sec('Общая информация', [['Должность', r.title], ['Отдел', r.dept], ['Проект', r.project], ['Руководитель', name(r.manager)], ['Количество', String(r.seats)],
-      ['Причина', Model.REASONS[r.reason] + (r.reasonOther ? ': ' + r.reasonOther : '')]])}
-    ${sec('Должность', [['Обязанности', r.duties && html`<p className="text">${r.duties}</p>`], ['Требования', r.reqs && html`<p className="text">${r.reqs}</p>`], ['Опыт', r.experience],
-      ['Навыки', r.skills], ['Личные качества', r.personal], ['Образование', r.education], ['Дополнительно', r.extra]])}
-    ${sec('Условия', [['Формат', r.format], ['Локация', r.location], ['График', r.schedule], ['Занятость', r.employment],
-      ['Зарплата', p.salary ? r.salary : ''], ['Бонусы / KPI', p.salary ? r.bonus : ''], ['Испытательный срок', r.probation], ['Желаемая дата выхода', Model.fmtDate(r.start, true)]])}
-    ${sec('Дополнительно', [['Приоритет', Model.PRIORITY[r.priority]], ['Комментарий', r.comment && html`<p className="text">${r.comment}</p>`]])}
-    ${r.files && r.files.length > 0 && html`<section className="sec"><h3 className="sec-h">Файлы</h3><ul className="files">${r.files.map((f, i) => html`<li key=${i}><${Icon} n="clip" s=${15}/>${f.name}</li>`)}</ul></section>`}
+    ${order}
   </div>`;
 }
 
-/* лента событий справа: что было, кто и когда. Длинная история свёрнута до последних событий */
+/* итог закрытой вакансии (п. 20) */
+function Result({r}){
+  const hs = r.hires.filter(h => h.stage === 'done'), n = Model.days(r.created, r.closedAt), pub = r.publications[0];
+  const first = (f) => { const x = hs.map(f).filter(Boolean); return x.length ? Model.fmtDate(Math.min(...x), true) : ''; };
+  return html`<div className="now">
+    <div className="now-t">Закрыта ${Model.fmtDate(r.closedAt, true)}, за ${n} ${Model.plural(n, 'день', 'дня', 'дней')}</div>
+    <${Facts} rows=${[['Нанят' + (hs.length > 1 ? 'ы' : ''), hs.map(h => h.name).join(', ')], ['Открыта', Model.fmtDate(r.created, true)], ['Опубликована', pub && Model.fmtDate(pub.date, true)],
+      ['Кандидат найден', first(h => h.chosen)], ['Выход', first(h => h.internStart)], ['Оформление', first(h => h.hiredAt)],
+      ['Рекрутер', name(r.recruiter)], ['Руководитель', name(r.manager)]]}/>
+  </div>`;
+}
+/* остановленная заявка: кто, когда и почему */
+function Stopped({r}){
+  const l = r.log.filter(x => x.step === 'reject' || x.step === 'cancel').pop();
+  if(!l) return null;
+  const title = r.status === 'cancelled' ? 'Заявка отменена: ' + r.cancel.reason.toLowerCase() : (l.by === Model.FIN ? 'Finance' : 'CEO') + ' отклонил заявку';
+  const q = r.status === 'cancelled' ? r.cancel.comment : l.comment;
+  return html`<div className="now"><div className="now-t">${title}</div><div className="now-m">${name(l.by)}, ${Model.fmtDateTime(l.at)}</div>${q && html`<blockquote className="now-q">${q}</blockquote>`}</div>`;
+}
+
+/* история: что было, кто и когда. Длинная свёрнута до последних событий */
 const TL_ICON = {new:'doc', ok:'ok', stop:'no', ret:'ret', ev:'ev'};
 const whoLine = id => { const p = Model.PEOPLE[id]; return p ? Model.short(p.name) + ', ' + (p.role === 'manager' ? 'руководитель' : p.role === 'recruiter' ? 'рекрутер' : Model.ROLE[p.role]) : ''; };
 /* записи в истории написаны от мужского рода; для женщин глагол меняется при показе */
@@ -492,9 +544,6 @@ function Timeline({items, limit = 8}){
     </li>`)}</ol>
   </div>`;
 }
-function Info({rows}){
-  return html`<dl className="info">${rows.filter(x => x[1]).map(([k, val]) => html`<div key=${k}><dt>${k}</dt><dd>${val}</dd></div>`)}</dl>`;
-}
 
 /* ---------- отмена заявки ---------- */
 function CancelForm({r, onDone}){
@@ -517,19 +566,25 @@ function CancelForm({r, onDone}){
   </div>`;
 }
 
-/* ---------- страница заявки: слева заявка и ваш ход, справа история и сведения ---------- */
+/* ---------- окно заявки ---------- */
 function RequestPage({r, view, cid}){
   const v = useViewer(), now = useNow();
-  const [tab, setTabState] = useState('path'), [focus, setFocus] = useState(null), [cancel, setCancel] = useState(false);
   const p = Model.perms(r, v), more = useMenu(), guard = useRef(false);
-  const [ask, setAsk] = useState(null);
+  const [cancel, setCancel] = useState(false), [focus, setFocus] = useState(null), [ask, setAsk] = useState(null);
+  const ph = Model.phase(r), stopped = r.status === 'rejected' || r.status === 'cancelled';
+  const showCands = p.candidates && ['published','closed'].includes(r.status) || (p.candidates && Model.activeHires(r).length > 0);
+  const tabs = [r.hires.length > 0 && ['hire', r.hires.length > 1 ? 'Сотрудники' : 'Сотрудник'],
+    showCands && ['candidates', 'Кандидаты', r.candidates.filter(c => c.stage !== 'rejected').length],
+    p.request && ['info', 'Заявка'], p.history && ['history', 'История']].filter(Boolean);
+  /* главная вкладка — работа текущей фазы */
+  const main = ph === 'search' && r.status === 'published' && showCands ? 'candidates' : (ph === 'start' || ph === 'hire' || r.status === 'closed') && r.hires.length ? 'hire' : p.request ? 'info' : tabs[0] && tabs[0][0];
+  const [tab, setTabState] = useState(main);
+  useEffect(() => { setTabState(main); setFocus(null); }, [r.id, v, main]);
+  useEffect(() => { setCancel(false); }, [r.id, v]);
   const tabsRef = useRef(null);
-  const setTab = (t, f) => { setTabState(t); setFocus(f || null); if(!f && tabsRef.current && tabsRef.current.getBoundingClientRect().top < 0) tabsRef.current.scrollIntoView({block:'start'}); };
-  useEffect(() => { setTabState(Model.phase(r) === 'search' && p.candidates && r.manager === v ? 'candidates' : 'path'); setCancel(false); setFocus(null); }, [r.id, v]);
-  useEffect(() => { if(!p.candidates && tab === 'candidates') setTabState('path'); }, [v]);
+  const setTab = (k, f) => { setTabState(k); setFocus(f || null); if(!f && tabsRef.current && tabsRef.current.getBoundingClientRect().top < 0) tabsRef.current.scrollIntoView({block:'start'}); };
 
-  const showCands = p.candidates && !['draft','hr','returned','finance','ceo','assign','assigned'].includes(r.status) && r.status !== 'rejected';
-  const turns = Model.turns(r), mine = turns.filter(t => Model.mineTurn(t, v)), others = turns.filter(t => !Model.mineTurn(t, v) && !t.passive);
+  const turns = Model.turns(r), mine = turns.filter(t => Model.mineTurn(t, v)), others = turns.filter(t => !Model.mineTurn(t, v) && t.p !== v);
 
   const leave = then => { if(guard.current){ setAsk(() => then); return; } then(); };
   useEffect(() => { Panel.leave = leave; });
@@ -539,58 +594,40 @@ function RequestPage({r, view, cid}){
     const c = r.candidates.find(x => x.id === cid);
     return html`<div>
       ${view === 'add' ? html`<${AddCandidate} r=${r} guard=${guard} onCancel=${() => leave(() => { guard.current = false; go('#/r/' + r.id); })} onDone=${id => { guard.current = false; go('#/r/' + r.id + '/c/' + id); }}/>`
-        : c ? html`<${CandidateView} r=${r} c=${c} v=${v} now=${now}/>` : html`<div className="page is-narrow"><${ModalHead} title="Кандидат не найден" sub=${html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`}/></div>`}
+        : c ? html`<${CandidateView} r=${r} c=${c} v=${v} now=${now}/>` : html`<div className="mpage"><${ModalHead} title="Кандидат не найден" sub=${html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`}/></div>`}
       ${ask && html`<div className="guard" role="alert"><span>Кандидат не добавлен. Выйти без сохранения?</span>
         <${Btn} kind="danger" onClick=${() => { const f = ask; setAsk(null); guard.current = false; f(); }}>Выйти<//><${Btn} kind="ghost" onClick=${() => setAsk(null)}>Остаться<//></div>`}
     </div>`;
   }
 
-  const hires = Model.activeHires(r), ph = Model.phase(r), stopped = r.status === 'rejected' || r.status === 'cancelled';
-  const tabs = [['path','Путь'], showCands && ['candidates','Кандидаты', r.candidates.filter(c => c.stage !== 'rejected').length], p.request && ['info','Заявка']].filter(Boolean);
-  const late = r.deadline && r.deadline < now && ph !== 'closed';
   const log = r.log.filter(l => !/^(Отметил|Снял отметку):/.test(l.text)).map(l => ({at:l.at, title:byGender(l.text, l.by), who:whoLine(l.by), comment:l.comment, kind:logKind(l)}));
-  return html`<div className="page">
-    <div className="pg-main">
-      <${ModalHead} title=${html`${r.title}${r.seats > 1 && html`<small className="num">× ${r.seats}</small>`}`} sub=${r.dept + ' / ' + r.project} badge=${Model.statusText(r)} stop=${stopped}>
-          ${p.cancel && html`<div className="m-more">
-            <button className="icon-btn" ref=${more.btn} aria-label="Ещё" aria-haspopup="menu" aria-expanded=${more.open} onClick=${() => more.setOpen(!more.open)}><${Icon} n="more"/></button>
-            ${more.open && html`<div className="menu" role="menu" ref=${more.box} onKeyDown=${more.onMenuKey} style=${{right:0, top:38}}>
-              <button className="menu-item" role="menuitem" style=${{color:'var(--red)'}} onClick=${() => { more.setOpen(false); setCancel(true); }}>Отменить заявку</button>
-            </div>`}
-          </div>`}
-      <//>
-      ${(cancel || mine.length > 0 || others.length > 0) && html`<section className="box">
-        ${cancel && html`<${CancelForm} r=${r} onDone=${() => setCancel(false)}/>`}
-        ${!cancel && mine.map((t, i) => html`<${MyTurn} key=${'m' + i + (t.h || '') + r.status} r=${r} t=${t} now=${now} setTab=${setTab} tab=${tab}/>`)}
-        ${!cancel && others.map((t, i) => html`<${Waiting} key=${'o' + i} t=${t} now=${now}/>`)}
-        ${!cancel && r.seats > 1 && hires.length > 0 && hires.length < r.seats && html`<div className="now-m" style=${{marginTop:10}}>Выбрано ${hires.length} из ${r.seats}, подбор продолжается</div>`}
-      </section>`}
-      <section className="box">
-        <div className="pills" role="tablist" aria-label="Разделы заявки" ref=${tabsRef}>
-          ${tabs.map(([k, t, n]) => html`<button key=${k} role="tab" className="tab" id=${'tab-' + k} aria-selected=${tab === k} aria-controls="tabpanel"
-            onClick=${() => setTab(k)} onKeyDown=${e => { if(e.key === 'ArrowRight' || e.key === 'ArrowLeft'){ const i = tabs.findIndex(x => x[0] === tab), j = (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length; setTab(tabs[j][0]); requestAnimationFrame(() => document.getElementById('tab-' + tabs[j][0]).focus()); } }}
-            tabIndex=${tab === k ? 0 : -1}>${t}${n ? html`<span className="n num">${n}</span>` : null}</button>`)}
-        </div>
-        <div className="tab-body" role="tabpanel" id="tabpanel" aria-labelledby=${'tab-' + tab}>
-          ${tab === 'path' && html`<${PathTab} r=${r} v=${v} now=${now} focus=${focus}/>`}
-          ${tab === 'candidates' && html`<${CandidatesTab} r=${r} v=${v} now=${now}/>`}
-          ${tab === 'info' && html`<${InfoTab} r=${r} v=${v}/>`}
-        </div>
-      </section>
+  const strip = html`<${Strip} steps=${reqSteps(r)} now=${others.map((t, i) => html`<${TurnLine} key=${i} t=${t} now=${now}/>`)}/>`;
+  return html`<div className="mpage">
+    <${ModalHead} title=${html`${r.title}${r.seats > 1 && html`<small className="num">× ${r.seats}</small>`}`} sub=${r.dept + ' / ' + r.project} badge=${Model.statusText(r)} stop=${stopped} strip=${strip}>
+      ${p.cancel && html`<div className="m-more">
+        <button className="icon-btn" ref=${more.btn} aria-label="Ещё" aria-haspopup="menu" aria-expanded=${more.open} onClick=${() => more.setOpen(!more.open)}><${Icon} n="more"/></button>
+        ${more.open && html`<div className="menu" role="menu" ref=${more.box} onKeyDown=${more.onMenuKey} style=${{right:0, top:38}}>
+          <button className="menu-item" role="menuitem" style=${{color:'var(--red)'}} onClick=${() => { more.setOpen(false); setCancel(true); }}>Отменить заявку</button>
+        </div>`}
+      </div>`}
+    <//>
+    ${cancel && html`<${CancelForm} r=${r} onDone=${() => setCancel(false)}/>`}
+    ${!cancel && mine.map((t, i) => html`<${MyTurn} key=${'m' + i + (t.h || '') + r.status} r=${r} t=${t} now=${now} setTab=${setTab} tab=${tab}/>`)}
+    ${stopped && html`<${Stopped} r=${r}/>`}
+    ${r.status === 'closed' && html`<${Result} r=${r}/>`}
+    <div>
+      ${tabs.length > 1 && html`<div className="pills" role="tablist" aria-label="Разделы заявки" ref=${tabsRef}>
+        ${tabs.map(([k, t, n]) => html`<button key=${k} role="tab" className="tab" id=${'tab-' + k} aria-selected=${tab === k} aria-controls="tabpanel"
+          onClick=${() => setTab(k)} onKeyDown=${e => { if(e.key === 'ArrowRight' || e.key === 'ArrowLeft'){ const i = tabs.findIndex(x => x[0] === tab), j = (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length; setTab(tabs[j][0]); requestAnimationFrame(() => document.getElementById('tab-' + tabs[j][0]).focus()); } }}
+          tabIndex=${tab === k ? 0 : -1}>${t}${n ? html`<span className="n num">${n}</span>` : null}</button>`)}
+      </div>`}
+      <div className=${tabs.length > 1 ? 'tab-body' : ''} role="tabpanel" id="tabpanel" aria-labelledby=${tabs.length > 1 ? 'tab-' + tab : null}>
+        ${tab === 'hire' && html`<${HireTab} r=${r} v=${v} focus=${focus}/>`}
+        ${tab === 'candidates' && html`<${CandidatesTab} r=${r} v=${v} now=${now}/>`}
+        ${tab === 'info' && html`<${Brief} r=${r} v=${v} now=${now}/>`}
+        ${tab === 'history' && html`<${Timeline} key=${r.id} items=${log} limit=${12}/>`}
+      </div>
     </div>
-    <aside className="pg-side">
-      ${p.history && html`<section className="box"><h2 className="box-t">История</h2><${Timeline} key=${r.id} items=${log}/></section>`}
-      <section className="box"><h2 className="box-t">Информация</h2>
-        <${Info} rows=${[
-          ['Руководитель', name(r.manager)],
-          ['Рекрутер', r.recruiter ? name(r.recruiter) : html`<span className="muted">не назначен</span>`],
-          ['Создана', Model.fmtDate(r.created, true)],
-          ['Желаемый выход', Model.fmtDate(r.start, true)],
-          ['Срок закрытия', r.deadline && html`<span className=${'num' + (late ? ' late' : '')}>${late ? html`<${Icon} n="late" s=${14} label="Срок прошёл"/> ` : ''}${Model.fmtDate(r.deadline, true)}</span>`],
-          ['Зарплата', p.salary && r.salary],
-          ['Изменена', Model.fmtDate(r.updated, true)]]}/>
-      </section>
-    </aside>
   </div>`;
 }
 const Panel = {leave:f => f()};

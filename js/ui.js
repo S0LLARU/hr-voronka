@@ -147,17 +147,18 @@ function Decide({actions}){
 
 /* шапка модального окна: страница сама говорит, что показать, а окно держит место и крестик */
 const ModalSlot = React.createContext(null);
-function ModalHead({title, sub, badge, stop, children}){
+/* strip — полоса пути под шапкой: она не прокручивается вместе с окном, поэтому видна всегда */
+function ModalHead({title, sub, badge, stop, strip, children}){
   const slot = React.useContext(ModalSlot);
-  if(!slot) return null;
-  return ReactDOM.createPortal(html`<${Fragment}>
+  if(!slot || !slot.head) return null;
+  return html`<${Fragment}>${strip && slot.strip && ReactDOM.createPortal(strip, slot.strip)}${ReactDOM.createPortal(html`<${Fragment}>
     <div className="m-t">
       <h1 className="m-title" tabIndex="-1" data-autofocus="true">${title}</h1>
       ${sub && html`<div className="m-sub">${sub}</div>`}
     </div>
     ${badge && html`<span className=${'badge' + (stop ? ' is-stop' : '')}>${badge}</span>`}
     ${children}
-  <//>`, slot);
+  <//>`, slot.head)}<//>`;
 }
 /* ссылка «назад» под заголовком окна: к заявке из кандидата и из доработки */
 function BackLink({href, children}){
