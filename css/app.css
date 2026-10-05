@@ -297,6 +297,7 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 .m-slot{display:contents}
 .m-t{flex:1;min-width:0}
 .m-title{margin:0;font-size:18px;line-height:1.25;font-weight:600;letter-spacing:-.016em;outline:none;overflow-wrap:anywhere}
+.m-title:focus-visible{box-shadow:none}
 .m-title small{font-size:15px;font-weight:500;color:var(--ink-3);letter-spacing:0;margin-left:6px}
 .m-sub{margin-top:0;font-size:13.5px;color:var(--ink-3)}
 .m-back{display:inline-flex;align-items:center;gap:4px;margin-left:-2px;color:var(--ink-3);text-decoration:none;border-radius:6px}
