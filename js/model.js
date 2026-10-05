@@ -12,7 +12,7 @@
 const Model = (function(){
   const H = 3600e3, D = 24 * H;
 
-  const ROLE = {manager:'Руководитель', hrd:'HRD', recruiter:'Рекрутер', finance:'Finance', ceo:'CEO', it:'IT'};
+  const ROLE = {manager:'Руководитель', hrd:'HRD', recruiter:'Рекрутер', finance:'Finance', ceo:'CEO'};
 
   const PEOPLE = {
     dan:{name:'Данияр Ахметов', role:'manager', dept:'Продакшн'},
@@ -23,10 +23,9 @@ const Model = (function(){
     ali:{name:'Алия Нурланова', role:'recruiter', f:1},
     sam:{name:'Самат Беков', role:'recruiter'},
     rin:{name:'Ринат Оспанов', role:'finance'},
-    arm:{name:'Арман Тлеубаев', role:'ceo'},
-    olz:{name:'Олжас Каримов', role:'it'}
+    arm:{name:'Арман Тлеубаев', role:'ceo'}
   };
-  const HRD = 'gul', FIN = 'rin', CEO = 'arm', IT = 'olz';
+  const HRD = 'gul', FIN = 'rin', CEO = 'arm';
   const RECRUITERS = ['ali','sam'];
 
   /* сколько шаг может ждать, пока не станет просроченным; потом настраивает администратор */
@@ -56,13 +55,13 @@ const Model = (function(){
     prep:{name:'Подготовка к выходу', items:[
       ['Отправить onboarding-презентацию','recruiter'],['Отправить список документов','recruiter'],['Запросить фото','recruiter'],
       ['Запросить удостоверение личности','recruiter'],['Подготовить NDA','recruiter'],['Сформировать личное дело','recruiter'],
-      ['Подготовить приветствие на экране','recruiter'],['Подготовить рабочее место','recruiter it'],['Подготовить технику','recruiter it'],
-      ['Создать корпоративную почту','it','opt'],['Дать доступы к рабочим системам','it'],['Дать доступ к общим дискам','it'],
-      ['Установить нужные программы','it']]},
+      ['Подготовить приветствие на экране','recruiter'],['Подготовить рабочее место','recruiter'],['Подготовить технику','recruiter'],
+      ['Создать корпоративную почту','recruiter','opt'],['Дать доступы к рабочим системам','recruiter'],['Дать доступ к общим дискам','recruiter'],
+      ['Установить нужные программы','recruiter']]},
     day1:{name:'Первый рабочий день', items:[
       ['Приветствие на экране к 10:00','recruiter'],['Приветствие в рабочем чате','recruiter'],['Встретить на ресепшн','recruiter'],
       ['Познакомить с HR и руководителем отдела','recruiter'],['Представить команде','manager'],['Познакомить с непосредственным руководителем','manager'],
-      ['Назначить наставника','manager'],['Провести IT-брифинг','it'],['Проверить технику','it'],['Проверить доступы','it'],
+      ['Назначить наставника','manager'],['Провести IT-брифинг','recruiter'],['Проверить технику','recruiter'],['Проверить доступы','recruiter'],
       ['Провести по To-do листу','mentor'],['Обозначить первые задачи','mentor'],['Объяснить рабочие процессы','mentor']]},
     docs:{name:'Документы', items:[
       ['Подготовить трудовой договор','recruiter'],['Подписать трудовой договор','recruiter'],['Создать личное дело','recruiter'],
@@ -155,11 +154,9 @@ const Model = (function(){
     openHires(r).forEach(h => {
       const nm = short(h.name);
       if(h.stage === 'prep'){
-        const l = h.lists.prep, left = listLeft(l), itLeft = l.filter(i => !i.done && !i.opt && i.who === 'it').length;
-        /* свои пункты рекрутер закрыл, остались пункты IT — ход у IT, у рекрутера его нет */
-        if(left > itLeft || !left) t.push({p:r.recruiter, h:h.id, hn:nm, text:left ? 'Готовим выход' : 'Выход подготовлен', mine:left ? 'Подготовить выход' : 'Отметить выход на стажировку', due:h.start, dueKind:'выход', ongoing:left > 0,
+        const l = h.lists.prep, left = listLeft(l);
+        t.push({p:r.recruiter, h:h.id, hn:nm, text:left ? 'Готовим выход' : 'Выход подготовлен', mine:left ? 'Подготовить выход' : 'Отметить выход на стажировку', due:h.start, dueKind:'выход', ongoing:left > 0,
           count:[l.length - l.filter(i => !i.done).length, l.length]});
-        if(itLeft) t.push({p:IT, h:h.id, hn:nm, text:'IT готовит рабочее место', mine:'Подготовить рабочее место', due:h.start, dueKind:'выход', ongoing:true});
       }
       if(h.stage === 'intern') t.push({p:r.manager, h:h.id, hn:nm, text:'Решение по стажировке', mine:'Решить по стажировке', due:h.decideBy, dueKind:'до'});
       if(h.stage === 'docs'){
@@ -167,7 +164,6 @@ const Model = (function(){
         t.push({p:r.recruiter, h:h.id, hn:nm, text:'Оформляем', mine:'Оформить сотрудника', since:h.stageAt, ongoing:listLeft(l) > 0,
           count:[l.filter(i => i.done).length, l.length]});
       }
-      if(h.stage === 'fin') t.push({p:FIN, h:h.id, hn:nm, text:'Ждёт Finance', mine:'Принять в работу', since:h.stageAt, sla:SLA.fin});
       if(h.stage === 'fot') t.push({p:FIN, h:h.id, hn:nm, text:'Finance учитывает в ФОТ', mine:'Учесть в ФОТ', since:h.stageAt, sla:SLA.fot});
     });
     return t;
@@ -185,7 +181,6 @@ const Model = (function(){
     if(role === 'recruiter') return r.recruiter === v;
     if(role === 'finance') return !!r.reached.finance;
     if(role === 'ceo') return !!r.reached.ceo;
-    if(role === 'it') return activeHires(r).some(h => h.stage === 'prep' || h.stage === 'intern');
     return false;
   }
   function perms(r, v){
@@ -193,8 +188,8 @@ const Model = (function(){
     return {
       salary: own || ['hrd','recruiter','finance','ceo'].includes(role),
       candidates: own || role === 'hrd' || role === 'recruiter',
-      request: role !== 'it',
-      history: role !== 'it',
+      request: true,
+      history: true,
       editCandidates: role === 'hrd' || (role === 'recruiter' && r.recruiter === v),
       cancel: (own || role === 'hrd') && !['closed','rejected','cancelled'].includes(r.status)
     };
@@ -205,12 +200,17 @@ const Model = (function(){
     if(role === 'hrd') return true;
     const w = item.who.split(' ');
     if(w.includes('recruiter') && r.recruiter === v) return true;
-    if(w.includes('it') && role === 'it') return true;
     if(w.includes('manager') && r.manager === v) return true;
     if(w.includes('mentor') && (r.manager === v || r.recruiter === v)) return true;
     return false;
   }
-  const WHO = {recruiter:'Рекрутер', it:'IT', manager:'Руководитель', mentor:'Наставник', 'recruiter it':'Рекрутер и IT'};
+  /* поля заявки — для замечаний при возврате на доработку */
+  const FIELD_NAMES = {title:'Должность', project:'Проект', dept:'Отдел', manager:'Руководитель', seats:'Сколько человек', reason:'Причина',
+    duties:'Обязанности', reqs:'Требования', experience:'Опыт', skills:'Навыки', personal:'Личные качества', education:'Образование', extra:'Дополнительные требования',
+    salary:'Зарплата', bonus:'Бонусы / KPI', format:'Формат работы', location:'Локация', schedule:'График', employment:'Тип занятости', probation:'Испытательный срок',
+    start:'Желаемая дата выхода', priority:'Приоритет', comment:'Комментарий для HR', files:'Файлы'};
+  const retText = p => [p.comment, ...Object.entries(p.notes || {}).map(([k, t]) => FIELD_NAMES[k] + ': ' + t)].filter(Boolean).join('\n');
+  const WHO = {recruiter:'Рекрутер', manager:'Руководитель', mentor:'Наставник'};
 
   /* ---------- действия ---------- */
   let seq = 1;
@@ -251,9 +251,9 @@ const Model = (function(){
       } else log(r, by, at, 'Изменил заявку');
     },
     hrAccept(S, by, at, p){ const r = find(S, p.id); status(r, 'finance', at); r.reached.finance = at; r.returned = null; log(r, by, at, 'Принял заявку и передал в Finance', p.comment, 'hr'); },
-    hrReturn(S, by, at, p){ const r = find(S, p.id); status(r, 'returned', at); r.returned = {by, at, comment:p.comment}; log(r, by, at, 'Вернул на доработку', p.comment, 'return'); },
+    hrReturn(S, by, at, p){ const r = find(S, p.id); status(r, 'returned', at); r.returned = {by, at, comment:p.comment, notes:p.notes || {}}; log(r, by, at, 'Вернул на доработку', retText(p), 'return'); },
     finApprove(S, by, at, p){ const r = find(S, p.id); status(r, 'ceo', at); r.reached.ceo = at; log(r, by, at, 'Согласовал', p.comment, 'finance'); },
-    finReturn(S, by, at, p){ const r = find(S, p.id); status(r, 'returned', at); r.returned = {by, at, comment:p.comment}; log(r, by, at, 'Вернул на доработку', p.comment, 'return'); },
+    finReturn(S, by, at, p){ const r = find(S, p.id); status(r, 'returned', at); r.returned = {by, at, comment:p.comment, notes:p.notes || {}}; log(r, by, at, 'Вернул на доработку', retText(p), 'return'); },
     finReject(S, by, at, p){ const r = find(S, p.id); status(r, 'rejected', at); r.closedAt = at; log(r, by, at, 'Отклонил заявку', p.comment, 'reject'); },
     ceoApprove(S, by, at, p){ const r = find(S, p.id); status(r, 'assign', at); log(r, by, at, 'Одобрил поиск', p.comment, 'ceo'); },
     ceoReject(S, by, at, p){ const r = find(S, p.id); status(r, 'rejected', at); r.closedAt = at; log(r, by, at, 'Отклонил открытие позиции', p.comment, 'reject'); },
@@ -348,7 +348,7 @@ const Model = (function(){
     },
     registered(S, by, at, p){
       const r = find(S, p.id), h = hire(r, p.hid);
-      h.stage = 'fin'; h.stageAt = at; h.hiredAt = at; h.lists.onboarding = makeList('onboarding');
+      h.stage = 'fot'; h.stageAt = at; h.hiredAt = at; h.lists.onboarding = makeList('onboarding');
       ctl(cand(r, h.cid), at, by, 'Официально оформлен');
       log(r, by, at, h.name + ' официально оформлен', '', 'registered');
       log(r, by, at, 'Finance получил уведомление: учесть ' + h.name + ' в ФОТ', '', 'notify');
@@ -384,7 +384,7 @@ const Model = (function(){
   /* ---------- демонстрационные данные ----------
      Собраны теми же действиями, что и в работе: у каждой заявки настоящая история. */
   function seed(now){
-    const S = {requests:[], v:2};
+    const S = {requests:[], v:3};
     const t = h => now - h * H, day = (d, hh) => { const x = new Date(now + d * D); x.setHours(hh ?? 10, 0, 0, 0); return x.getTime(); };
     /* события — в рабочее время: сутки сжимаются в 9:00–19:00, порядок событий сохраняется */
     const work = x => { const d = new Date(x), hr = d.getHours() + d.getMinutes() / 60, m = new Date(x); m.setHours(0, 0, 0, 0);
@@ -479,7 +479,6 @@ const Model = (function(){
     go('dan','decide',{id:video,hid:vh.id,verdict:'hire',comment:'Справился, оставляем.'},48+18*24);
     checkAll(video, vh, 'docs', 48 + 10 * 24, 'ali');
     go('ali','registered',{id:video,hid:vh.id},48+5*24);
-    go(FIN,'finAccept',{id:video,hid:vh.id},48+4*24);
     go(FIN,'fot',{id:video,hid:vh.id,comment:'Учтён с 1 октября.'},48);
 
     /* оформление */
@@ -565,7 +564,7 @@ const Model = (function(){
 
     /* согласование */
     const sales = go('ase', 'create', {fields:F.sales, send:true}, 30);
-    go(HRD, 'hrReturn', {id:sales, comment:'Уточните вилку: в заявке оклад без бонусов, а позиция под план продаж. Добавьте KPI и бонусную часть.'}, 20);
+    go(HRD, 'hrReturn', {id:sales, comment:'Позиция под план продаж — без бонусной части не закроем.', notes:{bonus:'Добавьте KPI и бонусную часть: процент от продаж.', salary:'Оклад без бонусов ниже рынка. Укажите вилку.'}}, 20);
     approve('montage', 70, 2, {hrAt:52, finAt:26, fin:'В бюджете продакшна на IV квартал.'});
     approve('smm', 60, 1, {hrAt:50, hr:'Срочная замена, прошу посмотреть в приоритете.'});
     approve('support', 3, 0, {});
@@ -573,8 +572,8 @@ const Model = (function(){
 
     return S;
 
-    function checkAll(id, h, list, at, by){ h.lists[list].forEach((it, i) => { if(!it.done) go(it.who === 'it' ? IT : it.who === 'manager' ? S.requests.find(r => r.id === id).manager : by, 'check', {id, hid:h.id, list, i, done:true}, at - i * .2); }); }
-    function checkSome(id, h, list, n, at, by){ h.lists[list].slice(0, n).forEach((it, i) => go(it.who === 'it' ? IT : it.who === 'manager' ? S.requests.find(r => r.id === id).manager : by, 'check', {id, hid:h.id, list, i, done:true}, at - i * .3)); }
+    function checkAll(id, h, list, at, by){ h.lists[list].forEach((it, i) => { if(!it.done) go(it.who === 'manager' ? S.requests.find(r => r.id === id).manager : by, 'check', {id, hid:h.id, list, i, done:true}, at - i * .2); }); }
+    function checkSome(id, h, list, n, at, by){ h.lists[list].slice(0, n).forEach((it, i) => go(it.who === 'manager' ? S.requests.find(r => r.id === id).manager : by, 'check', {id, hid:h.id, list, i, done:true}, at - i * .3)); }
   }
   function phone(n){ let x = 0; for(const ch of n) x = (x * 31 + ch.charCodeAt(0)) % 9999991; const d = String(1000000 + x % 8999999); return '+7 70' + (x % 8) + ' ' + d.slice(0,3) + ' ' + d.slice(3,5) + ' ' + d.slice(5,7); }
   function translit(s){
@@ -582,8 +581,8 @@ const Model = (function(){
     return s.toLowerCase().split('').map(ch => m[ch] ?? ch).join('').replace(/[^a-z0-9]/g, '');
   }
 
-  return {H, D, ROLE, PEOPLE, HRD, FIN, CEO, IT, RECRUITERS, SLA, DEPTS, REASONS, FORMATS, EMPLOYMENT, PRIORITY, PLATFORMS, SOURCES, REJECT, CANCEL,
-    STAGES, stageGroup, isRange, LISTS, listLeft, COLUMNS, phase, progress, statusText, turns, late, mineTurn, visible, perms, canCheck, WHO,
+  return {H, D, ROLE, PEOPLE, HRD, FIN, CEO, RECRUITERS, SLA, DEPTS, REASONS, FORMATS, EMPLOYMENT, PRIORITY, PLATFORMS, SOURCES, REJECT, CANCEL,
+    STAGES, stageGroup, isRange, FIELD_NAMES, LISTS, listLeft, COLUMNS, phase, progress, statusText, turns, late, mineTurn, visible, perms, canCheck, WHO,
     activeHires, openHires, act, seed, plural, fmtDate, fmtTime, fmtDateTime, ago, short, days};
 })();
 
@@ -591,7 +590,7 @@ const Model = (function(){
 const Store = (function(){
   const KEY = 'hr-funnel-v1', VKEY = 'hr-funnel-viewer';
   let state = null, viewer = 'dan', subs = new Set(), ver = 0, kind = 'init';
-  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if(s && s.v === 2) state = s; } catch(e) {}
+  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if(s && s.v === 3) state = s; } catch(e) {}
   if(!state) state = Model.seed(Date.now());
   try { const v = localStorage.getItem(VKEY); if(v && Model.PEOPLE[v]) viewer = v; } catch(e) {}
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e) {} };

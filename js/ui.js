@@ -38,6 +38,10 @@ const ICONS = {
   send:'M16.5 3.5 8.8 11.2M16.5 3.5l-4.8 13-2.9-5.6-5.6-2.9z',
   mail:'M3.5 5.5h13v9h-13zM3.8 6l6.2 4.8L16.2 6',
   link:'M8.6 11.4a3 3 0 0 0 4.2 0l2.6-2.6a3 3 0 0 0-4.2-4.2l-.9.9M11.4 8.6a3 3 0 0 0-4.2 0l-2.6 2.6a3 3 0 0 0 4.2 4.2l.9-.9',
+  cal:'M4 6.5a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 16 6.5v8a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 4 14.5zM4 8.5h12M7.5 3.5v3M12.5 3.5v3',
+  minus:'M5 10h10',
+  dl:'M10 4v8.5M6.5 9 10 12.5 13.5 9M5 15.5h10',
+  ext:'M11 4.5h4.5V9M15.5 4.5 9 11M13.5 11.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3',
   clip:'M14.5 9.5 9.6 14.4a3 3 0 0 1-4.2-4.2l5.6-5.6a2 2 0 0 1 2.8 2.8l-5.4 5.4a1 1 0 0 1-1.4-1.4l4.8-4.8'
 };
 function Icon({n, s = 16, w = 1.6, label}){
@@ -145,10 +149,11 @@ function Decide({actions, extra}){
   </div>`;
   if(!actions.length && !extra) return null;
   /* отмена и отказ — слева, решение — справа, главная кнопка крайняя справа */
+  const b = ([x, i]) => html`<${Btn} key=${i} kind=${x.kind || 'secondary'} disabled=${x.disabled} onClick=${() => x.ask ? setOpen(i) : x.run('')}>${x.label}<//>`;
+  const all = actions.map((x, i) => [x, i]);
   return html`<div className="row acts">
-    ${extra}
-    <div className="acts-r">${actions.map((x, i) => [x, i]).reverse().map(([x, i]) => html`<${Btn} key=${i} kind=${x.kind || 'secondary'} disabled=${x.disabled}
-      onClick=${() => x.ask ? setOpen(i) : x.run('')}>${x.label}<//>`)}</div>
+    ${extra}${all.filter(([x]) => x.kind === 'danger').map(b)}
+    <div className="acts-r">${all.filter(([x]) => x.kind !== 'danger').reverse().map(b)}</div>
   </div>`;
 }
 
@@ -181,3 +186,122 @@ const toInput = t => { if(!t) return ''; const d = new Date(t); return d.getFull
 const fromInput = s => { if(!s) return null; const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d, 10).getTime(); };
 const name = id => id ? Model.PEOPLE[id].name : '';
 const shortName = id => id ? Model.short(Model.PEOPLE[id].name) : '';
+
+/* ---------- поля как в shadcn/ui: список, календарь, число ----------
+   Всплывающее окно рисуется поверх всего (портал в body) и встаёт под полем или над ним,
+   если снизу не хватает места. Закрывается щелчком мимо, Esc и Tab. */
+function usePop(open, setOpen, trig){
+  const pop = useRef(null), [pos, setPos] = useState(null);
+  useLayoutEffect(() => {
+    if(!open){ setPos(null); return; }
+    const place = () => {
+      if(!trig.current) return;
+      const r = trig.current.getBoundingClientRect(), h = pop.current ? pop.current.offsetHeight : 0, w = pop.current ? pop.current.offsetWidth : 0;
+      const below = innerHeight - r.bottom - 8, up = h > below && r.top > below;
+      setPos({left:Math.max(8, Math.min(r.left, innerWidth - w - 8)), top:up ? r.top - h - 6 : r.bottom + 6, width:r.width});
+    };
+    place();
+    const down = e => { if(pop.current && !pop.current.contains(e.target) && trig.current && !trig.current.contains(e.target)) setOpen(false); };
+    const sc = e => { if(pop.current && pop.current.contains(e.target)) return; place(); };
+    document.addEventListener('pointerdown', down); addEventListener('scroll', sc, true); addEventListener('resize', place);
+    if(pop.current && Anim.on()) Motion.animate(pop.current, {opacity:[0,1], transform:['translateY(-4px) scale(.98)','translateY(0px) scale(1)']}, {type:'spring', visualDuration:.2, bounce:0});
+    return () => { document.removeEventListener('pointerdown', down); removeEventListener('scroll', sc, true); removeEventListener('resize', place); };
+  }, [open]);
+  return {pop, style:pos ? {left:pos.left, top:pos.top, minWidth:pos.width} : {left:0, top:0, visibility:'hidden'}};
+}
+const escKey = (e, close) => { if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); close(); return true; } return false; };
+
+/* список: options — [[значение, подпись, пояснение?]] или просто строки */
+function Select({value, options, onChange, placeholder = 'Выберите', id, label, 'aria-invalid':inv, 'aria-describedby':db, 'data-k':dk, className}){
+  const [open, setOpen] = useState(false), [act, setAct] = useState(0), trig = useRef(null);
+  const {pop, style} = usePop(open, setOpen, trig);
+  const opts = options.map(o => Array.isArray(o) ? o : [o, o]);
+  const cur = opts.find(o => o[0] === value);
+  useEffect(() => { if(open) setAct(Math.max(0, opts.findIndex(o => o[0] === value))); }, [open]);
+  useEffect(() => { const el = open && pop.current && pop.current.querySelector('[data-i="' + act + '"]'); if(el) el.scrollIntoView({block:'nearest'}); }, [act, open]);
+  const pick = v => { onChange(v); setOpen(false); trig.current && trig.current.focus(); };
+  const key = e => {
+    if(!open){ if(['ArrowDown','ArrowUp','Enter',' '].includes(e.key)){ e.preventDefault(); setOpen(true); } return; }
+    if(escKey(e, () => setOpen(false))) return;
+    if(e.key === 'ArrowDown'){ e.preventDefault(); setAct(Math.min(opts.length - 1, act + 1)); }
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); setAct(Math.max(0, act - 1)); }
+    else if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); if(opts[act]) pick(opts[act][0]); }
+    else if(e.key === 'Tab') setOpen(false);
+  };
+  return html`<${Fragment}>
+    <button type="button" ref=${trig} id=${id} data-k=${dk} className=${'inp sel' + (cur ? '' : ' is-empty') + (className ? ' ' + className : '')} aria-haspopup="listbox" aria-expanded=${open}
+      aria-invalid=${inv} aria-describedby=${db} aria-label=${label} onClick=${() => setOpen(!open)} onKeyDown=${key}>
+      <span className="sel-v">${cur ? cur[1] : placeholder}</span><${Icon} n="updown" s=${15}/>
+    </button>
+    ${open && ReactDOM.createPortal(html`<div className="pop pop-list" ref=${pop} role="listbox" style=${style}>
+      ${opts.map((o, i) => html`<div key=${o[0]} data-i=${i} role="option" aria-selected=${o[0] === value} className=${'opt' + (i === act ? ' is-act' : '')}
+        onPointerMove=${() => setAct(i)} onClick=${() => pick(o[0])}>
+        <span className="opt-t">${o[1]}${o[2] && html`<small>${o[2]}</small>`}</span>${o[0] === value && html`<${Icon} n="check" s=${15}/>`}
+      </div>`)}
+    </div>`, document.body)}
+  <//>`;
+}
+
+/* календарь: значение — строка ГГГГ-ММ-ДД; дни раньше min недоступны */
+const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const MONTHS_G = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const ymd = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const fromYmd = s => { if(!s) return null; const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const sameDay = (a, b) => a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+function DatePicker({value, onChange, min, id, placeholder = 'Выберите дату', 'aria-invalid':inv, 'aria-describedby':db, 'data-k':dk}){
+  const [open, setOpen] = useState(false), trig = useRef(null), grid = useRef(null);
+  const {pop, style} = usePop(open, setOpen, trig);
+  const sel = fromYmd(value), minD = fromYmd(min), today = new Date();
+  const [fd, setFd] = useState(sel || today);
+  useEffect(() => { if(open) setFd(sel || (minD && minD > today ? minD : today)); }, [open]);
+  useEffect(() => { const b = open && grid.current && grid.current.querySelector('[tabindex="0"]'); if(b) b.focus({preventScroll:true}); }, [fd, open]);
+  const y = fd.getFullYear(), m = fd.getMonth(), shift = (new Date(y, m, 1).getDay() + 6) % 7, n = new Date(y, m + 1, 0).getDate();
+  const cells = Array.from({length:shift}, () => null).concat(Array.from({length:n}, (_, i) => new Date(y, m, i + 1)));
+  const off = d => minD && d < minD;
+  const move = days => { const d = new Date(fd); d.setDate(d.getDate() + days); setFd(d); };
+  const month = k => setFd(new Date(y, m + k, Math.min(fd.getDate(), new Date(y, m + k + 1, 0).getDate())));
+  const pick = d => { if(off(d)) return; onChange(ymd(d)); setOpen(false); trig.current && trig.current.focus(); };
+  const key = e => {
+    if(escKey(e, () => { setOpen(false); trig.current && trig.current.focus(); })) return;
+    const k = {ArrowLeft:-1, ArrowRight:1, ArrowUp:-7, ArrowDown:7}[e.key];
+    if(k){ e.preventDefault(); move(k); }
+    if(e.key === 'PageUp' || e.key === 'PageDown'){ e.preventDefault(); month(e.key === 'PageUp' ? -1 : 1); }
+  };
+  return html`<${Fragment}>
+    <button type="button" ref=${trig} id=${id} data-k=${dk} className=${'inp sel' + (sel ? '' : ' is-empty')} aria-haspopup="dialog" aria-expanded=${open}
+      aria-invalid=${inv} aria-describedby=${db} onClick=${() => setOpen(!open)} onKeyDown=${e => { if(open) escKey(e, () => setOpen(false)); }}>
+      <span className="sel-v num">${sel ? sel.getDate() + ' ' + MONTHS_G[sel.getMonth()] + ' ' + sel.getFullYear() : placeholder}</span><${Icon} n="cal" s=${16}/>
+    </button>
+    ${open && ReactDOM.createPortal(html`<div className="pop cal" ref=${pop} role="dialog" aria-label="Выбор даты" style=${style} onKeyDown=${key}>
+      <div className="cal-h">
+        <button type="button" className="cal-nav" aria-label="Предыдущий месяц" onClick=${() => month(-1)}><${Icon} n="back" s=${16}/></button>
+        <span className="cal-t" aria-live="polite">${MONTHS[m]} ${y}</span>
+        <button type="button" className="cal-nav" aria-label="Следующий месяц" onClick=${() => month(1)}><${Icon} n="chev" s=${16}/></button>
+      </div>
+      <div className="cal-g" role="grid" ref=${grid}>
+        ${['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d => html`<span key=${d} className="cal-w" role="columnheader">${d}</span>`)}
+        ${cells.map((d, i) => d ? html`<button type="button" key=${i} role="gridcell" tabIndex=${sameDay(d, fd) ? 0 : -1} disabled=${off(d)}
+            className=${'cal-d' + (sameDay(d, sel) ? ' is-sel' : '') + (sameDay(d, today) ? ' is-today' : '')} aria-selected=${sameDay(d, sel)}
+            aria-label=${d.getDate() + ' ' + MONTHS_G[d.getMonth()]} onClick=${() => pick(d)}>${d.getDate()}</button>` : html`<span key=${i}/>`)}
+      </div>
+    </div>`, document.body)}
+  <//>`;
+}
+
+/* только цифры, разряды через пробел */
+const digits = s => String(s || '').replace(/\D/g, '');
+const groupDigits = s => digits(s).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+function NumInput({value, onChange, suffix, ...p}){
+  return html`<div className="num-inp"><input className="inp num" inputMode="numeric" autoComplete="off" ...${p} value=${groupDigits(value)}
+    onInput=${e => onChange(digits(e.target.value))}/>${suffix && html`<span className="num-suf" aria-hidden="true">${suffix}</span>`}</div>`;
+}
+/* сколько человек: минус, число, плюс */
+function Counter({value, onChange, min = 1, max = 50, id, label}){
+  const v = +value || min;
+  return html`<div className="counter" role="group" aria-label=${label}>
+    <button type="button" className="icon-btn" aria-label="Меньше" disabled=${v <= min} onClick=${() => onChange(String(v - 1))}><${Icon} n="minus" s=${16}/></button>
+    <input id=${id} className="inp num" inputMode="numeric" value=${value} onInput=${e => { const d = digits(e.target.value).slice(0, 2); onChange(d); }}
+      onBlur=${() => onChange(String(Math.min(max, Math.max(min, +value || min))))}/>
+    <button type="button" className="icon-btn" aria-label="Больше" disabled=${v >= max} onClick=${() => onChange(String(v + 1))}><${Icon} n="plus" s=${16}/></button>
+  </div>`;
+}

@@ -11,6 +11,7 @@ function parse(h){
     if(p[2] === 'edit') return {id:p[1], form:'edit'};
     if(p[2] === 'c' && p[3]) return {id:p[1], view:'cand', cid:p[3]};
     if(p[2] === 'add') return {id:p[1], view:'add'};
+    if(p[2] === 'review') return {id:p[1], view:'main', review:true};
     return {id:p[1], view:'main'};
   }
   return {};
@@ -22,7 +23,7 @@ function useHash(){
 }
 
 /* «Смотрю как» вместо входа: внизу меню, как карточка пользователя */
-const GROUPS = [['Руководители', 'manager'], ['HR', 'hrd recruiter'], ['Согласование', 'finance ceo'], ['IT', 'it']];
+const GROUPS = [['Руководители', 'manager'], ['HR', 'hrd recruiter'], ['Согласование', 'finance ceo']];
 function RolePicker(){
   const v = useViewer(), m = useMenu(), [sure, setSure] = useState(false);
   useEffect(() => { if(!m.open) setSure(false); }, [m.open]);
@@ -47,14 +48,17 @@ function RolePicker(){
   </div>`;
 }
 
+/* Finance и CEO доска не нужна: у них один экран — свои задачи (решение пользователя) */
+const tasksOnly = v => ['finance', 'ceo'].includes(Model.PEOPLE[v].role);
 function Sidebar({onNav}){
+  const v = useViewer(), t = tasksOnly(v);
   return html`<nav className="side" aria-label="Разделы">
     <div className="brand">
       <span className="brand-i" aria-hidden="true"><${Icon} n="funnel" s=${19}/></span>
       <span><span className="brand-n">Galamat HR</span><span className="brand-s">Воронка найма</span></span>
     </div>
     <div className="nav">
-      <a href="#/" aria-current="page" onClick=${e => { e.preventDefault(); onNav('#/'); }}><${Icon} n="board" s=${17}/>Заявки на подбор</a>
+      <a href="#/" aria-current="page" onClick=${e => { e.preventDefault(); onNav('#/'); }}><${Icon} n=${t ? 'ok' : 'board'} s=${17}/>${t ? 'Мои задачи' : 'Заявки на подбор'}</a>
     </div>
     <${RolePicker}/>
   </nav>`;
@@ -154,7 +158,7 @@ function App(){
   } else if(sr){
     const c = shown.cid && sr.candidates.find(x => x.id === shown.cid);
     label = shown.view === 'cand' && c ? c.name : sr.title; wide = shown.view !== 'add';
-    content = html`<${RequestPage} key=${sr.id} r=${sr} view=${shown.view} cid=${shown.cid}/>`;
+    content = html`<${RequestPage} key=${sr.id} r=${sr} view=${shown.view} cid=${shown.cid} startReview=${shown.review}/>`;
   }
   const canCreate = me.role === 'manager' || me.role === 'hrd';
 
@@ -165,12 +169,12 @@ function App(){
       <div className="main">
         <header className="bar">
           <button className="icon-btn" aria-label=${side && !drawer ? 'Скрыть меню' : 'Показать меню'} onClick=${toggleSide}><${Icon} n="side" s=${18}/></button>
-          <${Crumbs} items=${[['Заявки на подбор']]}/>
-          <label className="search"><span className="sr">Поиск заявок</span><${Icon} n="search"/>
-            <input type="search" value=${q} onInput=${e => setQ(e.target.value)} placeholder="Должность, проект, человек"/></label>
+          <${Crumbs} items=${[[tasksOnly(v) ? 'Мои задачи' : 'Заявки на подбор']]}/>
+          ${!tasksOnly(v) && html`<label className="search"><span className="sr">Поиск заявок</span><${Icon} n="search"/>
+            <input type="search" value=${q} onInput=${e => setQ(e.target.value)} placeholder="Должность, проект, человек"/></label>`}
           ${canCreate && html`<${Btn} kind="primary" aria-label="Создать заявку" onClick=${() => nav('#/new')}><${Icon} n="plus"/><span className="hide-s">Создать заявку</span><//>`}
         </header>
-        <main className="content"><${BoardPage} S=${S} v=${v} now=${now} q=${q} focusId=${shown && shown.id}/></main>
+        <main className="content">${tasksOnly(v) ? html`<${TasksPage} S=${S} v=${v}/>` : html`<${BoardPage} S=${S} v=${v} now=${now} q=${q} focusId=${shown && shown.id}/>`}</main>
       </div>
     </div>
     ${shown && html`<${Fragment}>

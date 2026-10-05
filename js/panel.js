@@ -15,10 +15,21 @@ function Box({title, aside, children, className, id}){
   </section>`;
 }
 /* сведения: подпись над значением в две колонки, длинный текст — во всю ширину */
-function Fields({rows, cols = 2}){
-  const list = rows.filter(x => x[1]);
+function Fields({rows, cols = 2, review}){
+  const list = rows.filter(x => x[1] || (review && x[3]));
   if(!list.length) return null;
-  return html`<dl className=${'fields is-' + cols}>${list.map(([k, val, wide]) => html`<div key=${k} className=${wide ? 'is-wide' : null}><dt>${k}</dt><dd>${val}</dd></div>`)}</dl>`;
+  return html`<dl className=${'fields is-' + cols}>${list.map(([k, val, wide, key]) => {
+    if(!review || !key) return html`<div key=${k} className=${wide ? 'is-wide' : null}><dt>${k}</dt><dd>${val}</dd></div>`;
+    const n = review.notes[key], on = review.open === key;
+    return html`<div key=${k} className=${'rev' + (wide || on || n ? ' is-wide' : '') + (n ? ' has-n' : '') + (on ? ' is-on' : '')}
+      onClick=${e => { if(!e.target.closest('textarea,button')) review.setOpen(on ? null : key); }}>
+      <dt>${k}<button type="button" className="rev-b" aria-expanded=${on} onClick=${() => review.setOpen(on ? null : key)}>${n ? 'Замечание' : '+ Замечание'}</button></dt>
+      <dd>${val || html`<span className="muted">Не заполнено</span>`}</dd>
+      ${on ? html`<textarea className="inp rev-t" rows="2" placeholder="Что исправить" autoFocus value=${n || ''}
+          onInput=${e => review.setNote(key, e.target.value)} onKeyDown=${e => { if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); review.setOpen(null); } }}/>`
+        : n && html`<div className="fnote"><${Icon} n="ret" s=${15}/><span>${n}</span></div>`}
+    </div>`;
+  })}</dl>`;
 }
 const RETURN_NOTE = 'Заявка вернётся руководителю. После доработки она снова придёт в HR и пройдёт согласование заново.';
 const REJECT_NOTE = 'Заявка закроется, руководитель увидит причину. Вернуть её нельзя: понадобится новая.';
@@ -118,17 +129,27 @@ function briefParts(r, v){
   const p = Model.perms(r, v), role = Model.PEOPLE[v].role;
   const txt = s => s && html`<span className="text">${s}</span>`;
   const files = r.files && r.files.length > 0 && html`<ul className="files">${r.files.map((f, i) => html`<li key=${i}><${Icon} n="clip" s=${15}/>${f.name}</li>`)}</ul>`;
-  const who = ['who', 'Кого ищем', [['Обязанности', txt(r.duties), true], ['Требования', txt(r.reqs), true], ['Опыт', r.experience], ['Навыки', r.skills],
-    ['Личные качества', r.personal], ['Образование', r.education], ['Дополнительные требования', txt(r.extra), true]]];
-  const cond = ['cond', 'Условия', [['Зарплата', p.salary && r.salary], ['Бонусы / KPI', p.salary && r.bonus], ['Формат работы', r.format], ['Локация', r.location],
-    ['График', r.schedule], ['Тип занятости', r.employment], ['Испытательный срок', r.probation], ['Желаемая дата выхода', Model.fmtDate(r.start, true)]]];
-  const why = ['why', 'Зачем открываем', [['Причина', Model.REASONS[r.reason] && Model.REASONS[r.reason] + (r.reasonOther ? ': ' + r.reasonOther : '')],
-    ['Сколько человек', String(r.seats || 1)], ['Приоритет', r.priority === 'high' ? 'Срочно' : 'Обычный'], ['Комментарий для HR', txt(r.comment), true], ['Файлы', files, true]]];
+  const who = ['who', 'Кого ищем', [['Обязанности', txt(r.duties), true, 'duties'], ['Требования', txt(r.reqs), true, 'reqs'], ['Опыт', r.experience, false, 'experience'], ['Навыки', r.skills, false, 'skills'],
+    ['Личные качества', r.personal, false, 'personal'], ['Образование', r.education, false, 'education'], ['Дополнительные требования', txt(r.extra), true, 'extra']]];
+  const cond = ['cond', 'Условия', [['Зарплата', p.salary && r.salary, false, p.salary && 'salary'], ['Бонусы / KPI', p.salary && r.bonus, false, p.salary && 'bonus'], ['Формат работы', r.format, false, 'format'], ['Локация', r.location, false, 'location'],
+    ['График', r.schedule, false, 'schedule'], ['Тип занятости', r.employment, false, 'employment'], ['Испытательный срок', r.probation, false, 'probation'], ['Желаемая дата выхода', Model.fmtDate(r.start, true), false, 'start']]];
+  const why = ['why', 'Зачем открываем', [['Причина', Model.REASONS[r.reason] && Model.REASONS[r.reason] + (r.reasonOther ? ': ' + r.reasonOther : ''), false, 'reason'],
+    ['Сколько человек', String(r.seats || 1), false, 'seats'], ['Приоритет', r.priority === 'high' ? 'Срочно' : 'Обычный', false, 'priority'], ['Комментарий для HR', txt(r.comment), true, 'comment'], ['Файлы', files, true]]];
   return role === 'finance' || role === 'ceo' ? [cond, why, who] : [who, cond, why];
 }
 /* на согласовании заявка — само дело: три блока подряд */
-function Brief({r, v}){
-  return briefParts(r, v).map(([k, t, rows]) => html`<${Box} key=${k} title=${t}><${Fields} rows=${rows}/><//>`);
+function Brief({r, v, review}){
+  return briefParts(r, v).map(([k, t, rows]) => html`<${Box} key=${k} title=${t}><${Fields} rows=${rows} review=${review}/><//>`);
+}
+/* возврат на доработку: замечания к полям и общий комментарий, внизу окна */
+function ReturnForm({count, comment, setComment, onCancel, onSend, err}){
+  const ref = useRef(null);
+  useEffect(() => { Anim.reveal(ref.current); }, []);
+  return html`<div className="decide" ref=${ref}>
+    <p className="note-m" style=${{margin:'0 0 10px'}}>${count ? 'Замечаний к полям: ' + count + '. ' : 'Нажмите на поле в заявке, чтобы оставить замечание. '}${RETURN_NOTE}</p>
+    <${Field} label="Общий комментарий" optional=${count > 0} error=${err}><textarea className="inp" rows="2" value=${comment} onInput=${e => setComment(e.target.value)}/><//>
+    <div className="row is-end"><${Btn} kind="ghost" onClick=${onCancel}>Отмена<//><${Btn} kind="primary" onClick=${onSend}>Вернуть на доработку<//></div>
+  </div>`;
 }
 /* после согласования заявка — справка под делом шага: открыта, можно свернуть; выбор помнится */
 function RequestBox({r, v}){
@@ -168,11 +189,14 @@ function Stopped({r}){
 /* ---------- чек-лист: каждый исполнитель отмечает свою часть разом ----------
    Пункты — памятка, что входит в шаг. Отмечать каждый никто не станет, поэтому одна кнопка «Всё сделано»
    на исполнителя; у сделанного — кто и когда. */
-const WHO_ORDER = ['recruiter', 'recruiter it', 'it', 'manager', 'mentor'];
+const WHO_ORDER = ['recruiter', 'manager', 'mentor'];
 function Checklist({r, h, list, v, who}){
   const items = h.lists[list];
   if(!items) return null;
-  const groups = WHO_ORDER.filter(w => items.some(i => i.who === w)).map(w => ({w, items:items.filter(i => i.who === w)}));
+  const hrd = Model.PEOPLE[v].role === 'hrd';
+  const groups = WHO_ORDER.filter(w => items.some(i => i.who === w)).map(w => ({w, items:items.filter(i => i.who === w)}))
+    .filter(g => hrd || Model.canCheck(g.items[0], r, v));
+  if(!groups.length) return null;
   const ready = groups.filter(g => g.items.every(i => i.done)).length;
   const set = (w, done) => Store.dispatch('checkGroup', {id:r.id, hid:h.id, list, who:w, done});
   const all = ready === groups.length, [open, setOpen] = useState(!all);
@@ -201,7 +225,7 @@ function Checklist({r, h, list, v, who}){
 /* сотрудник: работа текущего шага. Finance на своём шаге видит уведомление из п. 19 */
 function HireWork({r, h, v, showName}){
   const s = h.stage, fin = Model.PEOPLE[v].role === 'finance';
-  const lists = {prep:['prep'], intern:['day1'], docs:['docs', 'onboarding'], fin:['onboarding'], fot:['onboarding']}[s] || [];
+  const lists = {prep:['prep'], intern:['day1'], docs:['docs', 'onboarding'], fot:['onboarding']}[s] || [];
   const who = showName ? Model.short(h.name) : '';
   if(fin && (s === 'fin' || s === 'fot')) return html`<${Box} title="Новый сотрудник: учесть в ФОТ">
     <${Fields} rows=${[['ФИО', h.name], ['Должность', r.title], ['Отдел', r.dept], ['Проект', r.project], ['Руководитель', name(r.manager)],
@@ -222,10 +246,10 @@ function AssignForm({r, actions, extra}){
   return html`<${Fragment}>
     <${Box} title="Назначить рекрутера">
       <div className="grid3">
-        <${Field} label="Рекрутер" error=${err.rec}><select className="inp" data-k="rec" value=${rec} onChange=${e => { setRec(e.target.value); setErr({}); }}>
-          <option value="">Выберите</option>${Model.RECRUITERS.map(id => html`<option key=${id} value=${id}>${name(id)}, в работе ${load(id)}</option>`)}</select><//>
+        <${Field} label="Рекрутер" error=${err.rec}><${Select} data-k="rec" value=${rec} onChange=${x => { setRec(x); setErr({}); }}
+          options=${Model.RECRUITERS.map(id => [id, name(id), 'В работе ' + load(id) + ' ' + Model.plural(load(id), 'заявка', 'заявки', 'заявок')])}/><//>
         <div className="field"><span className="l">Приоритет</span><${Seg} label="Приоритет" value=${prio} onChange=${setPrio} options=${[['normal','Обычный'],['high','Срочно']]}/></div>
-        <${Field} label="Срок закрытия" error=${err.dl}><input className="inp" type="date" value=${dl} onInput=${e => setDl(e.target.value)}/><//>
+        <${Field} label="Срок закрытия" error=${err.dl}><${DatePicker} value=${dl} min=${ymd(new Date())} onChange=${setDl}/><//>
       </div>
     <//>
     <${ModalFoot}><${Decide} actions=${[{label:'Назначить', kind:'primary', run:send}, ...actions]} extra=${extra}/><//>
@@ -234,7 +258,7 @@ function AssignForm({r, actions, extra}){
 
 function PublishForm({r, actions, extra}){
   const [f, setF] = useState({platform:'HH', date:toInput(Date.now()), link:'', comment:''}), [err, setErr] = useState('');
-  const set = k => e => setF(Object.assign({}, f, {[k]:e.target.value}));
+  const set = k => e => setF(Object.assign({}, f, {[k]:e && e.target ? e.target.value : e}));
   const send = () => {
     if(!f.date){ setErr('Укажите дату публикации'); return; }
     Store.dispatch('publish', {id:r.id, platform:f.platform, date:fromInput(f.date), link:f.link.trim(), comment:f.comment.trim()});
@@ -242,8 +266,8 @@ function PublishForm({r, actions, extra}){
   return html`<${Fragment}>
     <${Box} title="Публикация вакансии">
       <div className="grid2">
-        <${Field} label="Площадка"><select className="inp" value=${f.platform} onChange=${set('platform')}>${Model.PLATFORMS.map(p => html`<option key=${p}>${p}</option>`)}</select><//>
-        <${Field} label="Дата" error=${err}><input className="inp" type="date" value=${f.date} onInput=${set('date')}/><//>
+        <${Field} label="Площадка"><${Select} value=${f.platform} onChange=${set('platform')} options=${Model.PLATFORMS}/><//>
+        <${Field} label="Дата" error=${err}><${DatePicker} value=${f.date} onChange=${set('date')}/><//>
         <${Field} label="Ссылка" optional=${true}><input className="inp" type="url" inputMode="url" value=${f.link} onInput=${set('link')} placeholder="https://"/><//>
         <${Field} label="Комментарий" optional=${true}><input className="inp" value=${f.comment} onInput=${set('comment')}/><//>
       </div>
@@ -271,7 +295,7 @@ function DecisionForm({r, h, many, actions, extra}){
         ${err.verdict ? html`<span className="err">${err.verdict}</span>` : verdict && html`<span className="hint">${VERDICT_NOTE[verdict]}</span>`}
       </div>
       <div className=${verdict === 'extend' ? 'grid-dc' : ''}>
-        ${verdict === 'extend' && html`<${Field} label="До какого числа" error=${err.until}><input className="inp" type="date" value=${until} onInput=${e => setUntil(e.target.value)}/><//>`}
+        ${verdict === 'extend' && html`<${Field} label="До какого числа" error=${err.until}><${DatePicker} value=${until} min=${ymd(new Date())} onChange=${setUntil}/><//>`}
         <${Field} label=${verdict === 'extend' ? 'Причина продления' : 'Комментарий'} error=${err.comment}>
           <textarea className="inp" rows="2" value=${comment} onInput=${e => { setComment(e.target.value); setErr(Object.assign({}, err, {comment:''})); }}/>
         <//>
@@ -291,7 +315,7 @@ function CancelForm({r, onDone}){
   return html`<div className="decide">
     <p className="note-m" style=${{margin:'0 0 10px'}}>Поиск остановится, кандидаты останутся в истории. Вернуть заявку нельзя: понадобится новая.</p>
     <div className="grid-dc">
-      <${Field} label="Причина отмены" error=${!reason ? err : ''}><select className="inp" value=${reason} onChange=${e => { setReason(e.target.value); setErr(''); }}><option value="">Выберите</option>${Model.CANCEL.map(x => html`<option key=${x}>${x}</option>`)}</select><//>
+      <${Field} label="Причина отмены" error=${!reason ? err : ''}><${Select} value=${reason} onChange=${x => { setReason(x); setErr(''); }} options=${Model.CANCEL}/><//>
       <${Field} label="Комментарий" optional=${reason !== 'Другое'} error=${reason ? err : ''}><input className="inp" value=${c} onInput=${e => { setC(e.target.value); setErr(''); }}/><//>
     </div>
     <div className="row is-end"><${Btn} kind="ghost" onClick=${onDone}>Не отменять<//><${Btn} kind="danger" onClick=${send}>Отменить заявку<//></div>
@@ -316,8 +340,7 @@ function CandActions({r, c, v, now, small}){
   if(rej) return html`<div className="decide">
     <p className="note-m" style=${{margin:'0 0 10px'}}>Кандидат уйдёт в отказы, руководитель увидит причину. Вернуть кандидата нельзя.</p>
     <div className="grid-dc">
-      <${Field} label="Причина отказа" error=${err && !reason ? err : ''}><select className="inp" value=${reason} onChange=${e => { setReason(e.target.value); setErr(''); }}>
-        <option value="">Выберите</option>${Model.REJECT.map(x => html`<option key=${x}>${x}</option>`)}</select><//>
+      <${Field} label="Причина отказа" error=${err && !reason ? err : ''}><${Select} value=${reason} onChange=${x => { setReason(x); setErr(''); }} options=${Model.REJECT}/><//>
       <${Field} label="Комментарий" optional=${reason !== 'Другое'} error=${err && reason ? err : ''}><input className="inp" value=${rc} onInput=${e => { setRc(e.target.value); setErr(''); }}/><//>
     </div>
     <div className="row is-end"><${Btn} kind="ghost" onClick=${() => { setRej(false); setErr(''); }}>Отмена<//><${Btn} kind="danger" onClick=${doReject}>Отказать<//></div>
@@ -334,7 +357,7 @@ function CandActions({r, c, v, now, small}){
       /* дату выхода спрашиваем один раз — когда кандидат согласился: от неё считается подготовка, её получает Finance */
       fields = html`<div className="grid2 c-fields">
         ${range && html`<${Field} label=${'Оклад (в заявке ' + r.salary + ')'} error=${err && !rej ? err : ''}><input className="inp" value=${pay} onInput=${e => { setPay(e.target.value); setErr(''); }}/><//>`}
-        <${Field} label="Дата выхода"><input className="inp" type="date" value=${start} onInput=${e => setStart(e.target.value)}/><//></div>`;
+        <${Field} label="Дата выхода"><${DatePicker} value=${start} onChange=${setStart}/><//></div>`;
       actions.push({label:'Согласился', kind:'primary', run:() => { if(range && !pay.trim()){ setErr('Укажите оклад, о котором договорились'); return; } d('accepted', {start:fromInput(start), salary:range ? pay.trim() : ''}); }},
         {label:'Отказался', kind:'danger', run:() => d('reject', {reason:'Отказался сам', comment:'Отказался от оффера'})});
     }
@@ -450,11 +473,22 @@ function NowBox({r, turns}){
 }
 
 /* ---------- окно заявки ---------- */
-function RequestPage({r, view, cid}){
+function RequestPage({r, view, cid, startReview}){
   const v = useViewer(), now = useNow();
   const p = Model.perms(r, v), guard = useRef(false);
   const [cancel, setCancel] = useState(false), [ask, setAsk] = useState(null);
-  useEffect(() => { setCancel(false); }, [r.id, v, r.status]);
+  /* режим замечаний: проверяющий нажимает на поле заявки и пишет, что исправить */
+  const [rev, setRev] = useState(null), [revC, setRevC] = useState(''), [revErr, setRevErr] = useState('');
+  const startReview_ = () => { setRev({notes:{}, open:null}); setRevC(''); setRevErr(''); };
+  useEffect(() => { setCancel(false); setRev(null); }, [r.id, v, r.status]);
+  useEffect(() => { if(startReview && (r.status === 'hr' || r.status === 'finance')) startReview_(); }, [startReview]);
+  const review = rev && {notes:rev.notes, open:rev.open, setOpen:k => setRev(Object.assign({}, rev, {open:k})),
+    setNote:(k, t) => { const n = Object.assign({}, rev.notes); if(t.trim()) n[k] = t; else delete n[k]; setRev(Object.assign({}, rev, {notes:n})); setRevErr(''); }};
+  const sendReturn = () => {
+    const n = Object.fromEntries(Object.entries(rev.notes).map(([k, t]) => [k, t.trim()]));
+    if(!Object.keys(n).length && !revC.trim()){ setRevErr('Отметьте поля или напишите, что исправить: без этого руководитель не поймёт, что менять'); return; }
+    Store.dispatch(r.status === 'finance' ? 'finReturn' : 'hrReturn', {id:r.id, comment:revC.trim(), notes:n});
+  };
 
   const leave = then => { if(guard.current){ setAsk(() => then); return; } then(); };
   useEffect(() => { Panel.leave = leave; });
@@ -482,11 +516,11 @@ function RequestPage({r, view, cid}){
   let form = null;
   if(reqTurn) switch(st){
     case 'draft': actions.push({label:'Дописать заявку', kind:'primary', run:() => go('#/r/' + r.id + '/edit')}); break;
-    case 'returned': actions.push({label:'Доработать', kind:'primary', run:() => go('#/r/' + r.id + '/edit')}); break;
+    case 'returned': break;
     case 'hr': actions.push({label:'Принять', kind:'primary', run:c => d('hrAccept', {comment:c})},
-      {label:'На доработку', ask:true, need:true, whom:'руководитель', confirm:'Вернуть на доработку', note:RETURN_NOTE, run:c => d('hrReturn', {comment:c})}); break;
+      {label:'На доработку', run:() => startReview_()}); break;
     case 'finance': actions.push({label:'Согласовать', kind:'primary', run:c => d('finApprove', {comment:c})},
-      {label:'На доработку', ask:true, need:true, whom:'руководитель', confirm:'Вернуть на доработку', note:RETURN_NOTE, run:c => d('finReturn', {comment:c})},
+      {label:'На доработку', run:() => startReview_()},
       {label:'Отклонить', kind:'danger', ask:true, need:true, whom:'руководитель', confirm:'Отклонить заявку', note:REJECT_NOTE, run:c => d('finReject', {comment:c})}); break;
     case 'ceo': actions.push({label:'Одобрить', kind:'primary', run:c => d('ceoApprove', {comment:c})},
       {label:'Отклонить', kind:'danger', ask:true, need:true, whom:'руководитель', confirm:'Отклонить заявку', note:REJECT_NOTE, run:c => d('ceoReject', {comment:c})}); break;
@@ -496,18 +530,26 @@ function RequestPage({r, view, cid}){
   let decide = null;
   mine.filter(t => t.h).forEach(t => {
     const h = r.hires.find(x => x.id === t.h), who = many ? ': ' + Model.short(h.name) : '';
-    if(h.stage === 'prep' && Model.PEOPLE[v].role !== 'it') actions.push({label:'Вышел на стажировку' + who, kind:'primary', disabled:Model.listLeft(h.lists.prep) > 0, run:() => d('started', {hid:h.id})});
+    if(h.stage === 'prep') actions.push({label:'Вышел на стажировку' + who, kind:'primary', disabled:Model.listLeft(h.lists.prep) > 0, run:() => d('started', {hid:h.id})});
     if(h.stage === 'intern' && !decide) decide = h;
     if(h.stage === 'docs') actions.push({label:'Сотрудник оформлен' + who, kind:'primary', disabled:Model.listLeft(h.lists.docs) > 0, run:() => d('registered', {hid:h.id})});
-    if(h.stage === 'fin') actions.push({label:'Принято в работу' + who, kind:'primary', run:c => d('finAccept', {hid:h.id, comment:c})});
-    if(h.stage === 'fot') actions.push({label:'Учтено в ФОТ' + who, kind:'primary', ask:true, need:false, confirm:'Учтено в ФОТ', run:c => d('fot', {hid:h.id, comment:c})});
+    if(h.stage === 'fot' || h.stage === 'fin') actions.push({label:'Учесть в ФОТ' + who, kind:'primary', run:() => d('fot', {hid:h.id, comment:''})});
   });
   const extra = p.cancel && html`<${Btn} kind="ghost" className="btn-cancel" onClick=${() => setCancel(true)}>Отменить заявку<//>`;
 
   /* слева — дело этого шага, под ним заявка. Хода нет — сверху «Сейчас»: кто и что делает */
   const main = [];
-  if(!mine.length && !stopped && st !== 'closed') main.push(html`<${NowBox} key="now" r=${r} turns=${Model.turns(r)}/>`);
-  if(st === 'returned') main.push(html`<${Note} key="ret" title="Что просят исправить" by=${r.returned.by} at=${r.returned.at} quote=${r.returned.comment}/>`);
+  const owner = r.manager === v || r.initiator === v, editing = st === 'returned' && owner;
+  if(!mine.length && !stopped && st !== 'closed' && !editing) main.push(html`<${NowBox} key="now" r=${r} turns=${Model.turns(r)}/>`);
+  if(st === 'returned'){
+    const ns = Object.entries(r.returned.notes || {});
+    const jump = k => { const el = document.querySelector('.modal [data-f="' + k + '"]'); if(!el) return; el.scrollIntoView({block:'center', behavior:Anim.on() ? 'smooth' : 'auto'}); const f = el.querySelector('input,textarea,button'); f && f.focus({preventScroll:true}); };
+    main.push(html`<div className="note" key="ret"><div className="note-t">Что просят исправить</div>
+      ${r.returned.comment && html`<blockquote className="note-q">${r.returned.comment}</blockquote>`}
+      ${ns.length > 0 && html`<ul className="ret-l">${ns.map(([k, t]) => html`<li key=${k}>${editing ? html`<button type="button" className="link-btn" onClick=${() => jump(k)}>${Model.FIELD_NAMES[k]}</button>` : html`<b>${Model.FIELD_NAMES[k]}</b>`}: ${t}</li>`)}</ul>`}
+      <div className="note-m">${name(r.returned.by)}, ${Model.fmtDateTime(r.returned.at)}</div></div>`);
+  }
+  if(editing) main.push(html`<${RequestForm} key="edit" r=${r} inline=${true} guard=${guard} notes=${r.returned.notes || {}}/>`);
   if(st === 'finance' || st === 'ceo'){
     const hr = lastLog(r, 'hr'), fin = lastLog(r, 'finance');
     if(hr && hr.comment) main.push(html`<${Note} key="hr" title="Комментарий HR" by=${hr.by} at=${hr.at} quote=${hr.comment}/>`);
@@ -517,12 +559,12 @@ function RequestPage({r, view, cid}){
   if(st === 'closed') main.push(html`<${Result} key="res" r=${r}/>`);
   if(form === 'assign') main.push(html`<${AssignForm} key="as" r=${r} actions=${actions} extra=${extra}/>`);
   if(form === 'publish') main.push(html`<${PublishForm} key="pub" r=${r} actions=${actions} extra=${extra}/>`);
-  if(decide && !cancel) main.push(html`<${DecisionForm} key=${'dc' + decide.id} r=${r} h=${decide} many=${many} actions=${actions} extra=${extra}/>`);
   open.forEach(h => main.push(html`<${HireWork} key=${h.id} r=${r} h=${h} v=${v} showName=${many}/>`));
+  if(decide && !cancel) main.push(html`<${DecisionForm} key=${'dc' + decide.id} r=${r} h=${decide} many=${many} actions=${actions} extra=${extra}/>`);
   if(searching && st === 'published' && p.candidates) main.push(html`<${Candidates} key="c" r=${r} v=${v} now=${now} canAdd=${p.editCandidates} guard=${guard}/>`);
-  if(p.request) main.push(approving ? html`<${Brief} key="brief" r=${r} v=${v}/>` : html`<${RequestBox} key="rb" r=${r} v=${v}/>`);
+  if(p.request && !editing) main.push(approving ? html`<${Brief} key="brief" r=${r} v=${v} review=${review}/>` : html`<${RequestBox} key="rb" r=${r} v=${v}/>`);
 
-  const own = (form || decide) && !cancel;
+  const own = ((form || decide) && !cancel) || editing;
   const late = r.deadline && r.deadline < now && Model.phase(r) !== 'closed';
   const pubs = r.publications;
   const info = [
@@ -540,28 +582,83 @@ function RequestPage({r, view, cid}){
     <${ModalHead} title=${html`${r.title}${r.seats > 1 && html`<small className="num">× ${r.seats}</small>`}`} sub=${r.dept + ' / ' + r.project} strip=${html`<${Strip} rows=${stripRows(r)}/>`}/>
     <div className="mmain">${main}</div>
     <${Side} info=${info} history=${log}/>
-    ${ask && html`<${ModalFoot}><div className="row is-end guard-row" role="alert"><span>Кандидат не добавлен. Выйти без сохранения?</span>
+    ${ask && html`<${ModalFoot}><div className="row is-end guard-row" role="alert"><span>Есть несохранённые изменения. Выйти без сохранения?</span>
       <${Btn} kind="ghost" onClick=${() => setAsk(null)}>Остаться<//><${Btn} kind="danger" onClick=${() => { const f = ask; setAsk(null); guard.current = false; f(); }}>Выйти<//></div><//>`}
-    ${ask ? null : cancel ? html`<${ModalFoot}><${CancelForm} r=${r} onDone=${() => setCancel(false)}/><//>`
+    ${ask ? null : rev ? html`<${ModalFoot}><${ReturnForm} count=${Object.keys(rev.notes).length} comment=${revC} setComment=${t => { setRevC(t); setRevErr(''); }} err=${revErr} onCancel=${() => setRev(null)} onSend=${sendReturn}/><//>`
+      : cancel ? html`<${ModalFoot}><${CancelForm} r=${r} onDone=${() => setCancel(false)}/><//>`
       : !own && (actions.length || extra) ? html`<${ModalFoot}><${Decide} actions=${actions} extra=${extra}/><//>` : null}
   </div>`;
 }
 
-/* ---------- окно кандидата ---------- */
-/* файлы: в прототипе сохраняются название и размер, сам файл остаётся у вас */
+/* ---------- окно кандидата: слева сведения и решение, справа документ — как договор в burabay-gis ----------
+   Резюме открыто сразу: руководителю не нужно никуда проваливаться, чтобы решить. Вкладки — файлы кандидата.
+   В прототипе загруженный файл виден, пока открыта вкладка браузера: настоящее хранение появится с сервером. */
 const FILE_KINDS = ['Резюме','Портфолио','Тестовое задание','Результат тестового','Рекомендации','Другое'];
-function Files({files, can, onAdd}){
-  const inp = useRef(null), [kind, setKind] = useState('Резюме');
-  const size = b => b > 1e6 ? (b / 1e6).toFixed(1).replace('.', ',') + ' МБ' : Math.max(1, Math.round(b / 1e3)) + ' КБ';
-  if(!files.length && !can) return null;
-  return html`<${Box} title="Файлы">
-    ${files.length ? html`<ul className="files">${files.map((f, i) => html`<li key=${i}><${Icon} n="clip" s=${15}/><span>${f.name}</span><small>${f.kind}, ${size(f.size)}</small></li>`)}</ul>` : null}
-    ${can && html`<div className="row" style=${{marginTop:files.length ? 10 : 0}}>
-      <select className="inp" style=${{width:'auto'}} aria-label="Что прикрепляете" value=${kind} onChange=${e => setKind(e.target.value)}>${FILE_KINDS.map(k => html`<option key=${k}>${k}</option>`)}</select>
-      <${Btn} onClick=${() => inp.current.click()}><${Icon} n="clip" s=${15}/>Прикрепить<//>
-      <input ref=${inp} type="file" multiple hidden onChange=${e => { const fs = Array.from(e.target.files).map(f => ({name:f.name, size:f.size, kind})); if(fs.length) onAdd(fs); e.target.value = ''; }}/>
-    </div>`}
-  <//>`;
+const FILE_URLS = new Map();
+const fileKey = (c, f) => c.id + '/' + f.name + '/' + f.size;
+
+/* резюме в прототипе собирается из сведений о кандидате и заявки; с сервером здесь будет сам файл */
+function resumeOf(c, r){
+  const years = parseInt(c.experience, 10) || 2, now = new Date().getFullYear();
+  const duties = (r.duties || '').split(/[,.;]\s*/).map(x => x.trim()).filter(Boolean);
+  const skills = (r.skills || '').split(/,\s*/).filter(Boolean);
+  const prev = c.position && /,|в /.test(c.position) ? c.position.split(/,| в /)[0].trim() : r.title;
+  return {
+    head:c.name, sub:[c.position, 'Алматы'].filter(Boolean).join(' · '),
+    contacts:[c.phone, c.tg, c.email].filter(Boolean).join('   '),
+    jobs:[
+      {when:(now - Math.min(years, 2)) + ' — по настоящее время', what:c.position || r.title, items:duties.slice(0, 3).map(d => d[0].toUpperCase() + d.slice(1))},
+      years > 2 && {when:(now - years) + ' — ' + (now - 2), what:'Младший ' + prev.toLowerCase(), items:['Работа в команде над проектами компании', 'Подготовка материалов по задачам руководителя']}
+    ].filter(Boolean),
+    skills, edu:r.education || 'Высшее', about:c.comment, expect:c.expect
+  };
+}
+function Paper({c, r}){
+  const d = resumeOf(c, r);
+  return html`<article className="paper">
+    <h2 className="pp-h">${d.head}</h2>
+    <p className="pp-sub">${d.sub}</p>
+    ${d.contacts && html`<p className="pp-c">${d.contacts}</p>`}
+    ${d.expect && html`<p className="pp-c">Желаемая зарплата: ${d.expect}</p>`}
+    <h3 className="pp-s">Опыт работы</h3>
+    ${d.jobs.map((j, i) => html`<div className="pp-job" key=${i}><div className="pp-when">${j.when}</div><div><b>${j.what}</b>
+      ${j.items.length > 0 && html`<ul>${j.items.map((x, k) => html`<li key=${k}>${x}</li>`)}</ul>`}</div></div>`)}
+    ${d.skills.length > 0 && html`<${Fragment}><h3 className="pp-s">Навыки</h3><p>${d.skills.join(' · ')}</p><//>`}
+    <h3 className="pp-s">Образование</h3><p>${d.edu}</p>
+    ${d.about && html`<${Fragment}><h3 className="pp-s">О себе</h3><p>${d.about}</p><//>`}
+  </article>`;
+}
+function DocPane({r, c, can}){
+  const docs = [{k:'cv', name:'Резюме'}].concat(c.files.map((f, i) => ({k:'f' + i, name:f.kind === 'Резюме' ? 'Резюме, файл' : f.kind, f})));
+  const [tab, setTab] = useState('cv'), [kind, setKind] = useState('Портфолио'), [, force] = useState(0), inp = useRef(null);
+  const doc = docs.find(x => x.k === tab) || docs[0], url = doc.f && FILE_URLS.get(fileKey(c, doc.f));
+  const add = e => {
+    const fs = Array.from(e.target.files); e.target.value = '';
+    if(!fs.length) return;
+    fs.forEach(f => FILE_URLS.set(fileKey(c, {name:f.name, size:f.size}), {url:URL.createObjectURL(f), type:f.type}));
+    Store.dispatch('addFiles', {id:r.id, cid:c.id, files:fs.map(f => ({name:f.name, size:f.size, kind}))});
+    setTab('f' + c.files.length); force(x => x + 1);
+  };
+  return html`<section className="doc" aria-label="Документы кандидата">
+    <div className="doc-bar">
+      ${docs.length > 1 ? html`<div className="seg" role="tablist" aria-label="Документы">${docs.map(x => html`<button key=${x.k} type="button" role="tab" aria-selected=${x.k === doc.k} aria-pressed=${x.k === doc.k} onClick=${() => setTab(x.k)}>${x.name}</button>`)}</div>`
+        : html`<span className="doc-t">Резюме</span>`}
+      <div className="doc-act">
+        ${doc.k === 'cv' && c.resume && html`<a className="btn btn-secondary btn-sm" href=${c.resume} target="_blank" rel="noopener"><${Icon} n="ext" s=${15}/>Открыть оригинал<//>`}
+        ${url && html`<a className="icon-btn" href=${url.url} download=${doc.f.name} aria-label="Скачать"><${Icon} n="dl" s=${18}/></a>`}
+        ${can && html`<div style=${{width:170}}><${Select} label="Что прикрепляете" value=${kind} onChange=${setKind} options=${FILE_KINDS}/></div>
+          <${Btn} className="btn-sm" onClick=${() => inp.current.click()}><${Icon} n="clip" s=${15}/>Прикрепить<//>
+          <input ref=${inp} type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange=${add}/>`}
+      </div>
+    </div>
+    <div className="doc-pane">
+      ${doc.k === 'cv' ? html`<${Paper} c=${c} r=${r}/>`
+        : url && /pdf/.test(url.type) ? html`<iframe className="doc-frame" src=${url.url} title=${doc.f.name}></iframe>`
+        : url && /^image\//.test(url.type) ? html`<img className="doc-img" src=${url.url} alt=${doc.f.name}/>`
+        : html`<div className="no-scan"><${Icon} n="doc" s=${28}/><p>${doc.f.name}</p><small className="muted">${url ? 'Предпросмотр этого формата появится с сервером' : 'Файл прикреплён до перезагрузки страницы; с сервером он будет храниться'}</small>
+          ${url && html`<a className="btn btn-secondary" href=${url.url} download=${doc.f.name}><${Icon} n="dl" s=${15}/>Скачать</a>`}</div>`}
+    </div>
+  </section>`;
 }
 
 function CandidateView({r, c, v, now}){
@@ -570,25 +667,22 @@ function CandidateView({r, c, v, now}){
     : c.stage === 'approved' ? 'Одобрен руководителем' : c.stage === 'mgr' ? 'У руководителя' : c.stage === 'offer' ? 'Оффер отправлен' : {new:'Интервью HR', hr:'Интервью HR', test:'Тестовое'}[c.stage];
   const ckind = x => /одобрил$|согласил|Выбран|нанимаем/i.test(x.text) ? 'ok' : /отказ/i.test(x.text) ? 'stop' : 'ev';
   const ctimeline = c.timeline.map((x, i) => ({at:x.at, title:x.text, who:x.by ? whoLine(x.by) : '', kind:i === 0 ? 'new' : ckind(x)}));
-  const acts = html`<${CandActions} r=${r} c=${c} v=${v} now=${now}/>`;
+  const link = (href, t, ext) => html`<a href=${href} target=${ext ? '_blank' : undefined} rel=${ext ? 'noopener' : undefined}>${t}</a>`;
 
-  return html`<div className="mgrid">
+  return html`<div className="cgrid">
     <${ModalHead} title=${c.name} sub=${html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`} strip=${html`<${Strip} rows=${[{steps:candSteps(c)}]}/>`}/>
-    <div className="mmain">
+    <div className="cside">
       ${c.stage === 'rejected' && html`<${Note} title=${'Отказ: ' + c.reject.reason.toLowerCase()} by=${c.reject.by} at=${c.reject.at} quote=${c.reject.comment}/>`}
-      <${Box} title="Контакты"><${Fields} rows=${[['Телефон', c.phone && html`<a href=${'tel:' + c.phone.replace(/\s/g, '')}>${c.phone}</a>`],
-        ['Telegram', c.tg && html`<a href=${'https://t.me/' + c.tg.replace('@', '')} target="_blank" rel="noopener">${c.tg}</a>`],
-        ['Почта', c.email && html`<a href=${'mailto:' + c.email}>${c.email}</a>`],
-        ['Резюме', c.resume && html`<a href=${c.resume} target="_blank" rel="noopener">Открыть</a>`]]}/><//>
-      <${Box} title="О кандидате"><${Fields} rows=${[['Сейчас работает', c.position], ['Опыт', c.experience], ['Ожидания по зарплате', c.expect], ['Откуда', c.source],
-        ['Комментарий', c.comment && html`<span className="text">${c.comment}</span>`, true]]}/><//>
+      <${Box} title="Кандидат"><${Fields} cols=${2} rows=${[['Этап', stageName], ['Откуда', c.source], ['Сейчас работает', c.position, true], ['Опыт', c.experience], ['Ожидания', c.expect],
+        ['Телефон', c.phone && link('tel:' + c.phone.replace(/\s/g, ''), c.phone)], ['Telegram', c.tg && link('https://t.me/' + c.tg.replace('@', ''), c.tg, true)],
+        ['Почта', c.email && link('mailto:' + c.email, c.email), true], ['Комментарий рекрутера', c.comment && html`<span className="text">${c.comment}</span>`, true]]}/><//>
       ${c.feedback.length > 0 && html`<${Box} title="Ответ руководителя">
         ${c.feedback.map((f, i) => html`<div key=${i} className="fb"><div className=${f.verdict === 'approve' ? 'ok' : 'late'}>${f.verdict === 'approve' ? 'Одобрил' : 'Отказал'}<span className="muted">, ${name(f.by)}, ${Model.fmtDate(f.at)}</span></div>${f.comment && html`<blockquote className="tl-c">${f.comment}</blockquote>`}</div>`)}
       <//>`}
-      <${Files} files=${c.files} can=${Model.perms(r, v).editCandidates} onAdd=${fs => Store.dispatch('addFiles', {id:r.id, cid:c.id, files:fs})}/>
+      <${Box} title="История"><${Timeline} items=${ctimeline} limit=${4}/><//>
     </div>
-    <${Side} info=${[['Этап', stageName], ['На этапе с', Model.fmtDate(c.stageAt, true)], ['Откуда', c.source], ['Добавлен', c.timeline[0] && Model.fmtDate(c.timeline[0].at, true)]]} history=${ctimeline}/>
-    <${ModalFoot}>${acts}<//>
+    <${DocPane} r=${r} c=${c} can=${Model.perms(r, v).editCandidates}/>
+    <${ModalFoot}><${CandActions} r=${r} c=${c} v=${v} now=${now}/><//>
   </div>`;
 }
 
@@ -613,7 +707,7 @@ function AddCandidate({r, onDone, onCancel, guard}){
     <div className="box-h"><h3 className="box-t">Новый кандидат</h3></div>
     <div className="grid-dc">
       <${Field} id="ac-name" label="ФИО" error=${err.name}><input className="inp" value=${f.name} onInput=${set('name')} autoComplete="off"/><//>
-      <${Field} id="ac-source" label="Откуда" error=${err.source}><select className="inp" value=${f.source} onChange=${set('source')}><option value="">Выберите</option>${Model.SOURCES.map(s => html`<option key=${s}>${s}</option>`)}</select><//>
+      <${Field} id="ac-source" label="Откуда" error=${err.source}><${Select} value=${f.source} onChange=${x => set('source')({target:{value:x}})} options=${Model.SOURCES}/><//>
     </div>
     <div className="grid3">
       <${Field} id="ac-phone" label="Телефон" error=${err.contact}><input className="inp" type="tel" value=${f.phone} onInput=${set('phone')} placeholder="+7"/><//>

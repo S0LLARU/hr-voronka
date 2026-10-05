@@ -92,7 +92,8 @@ a{color:var(--accent)}
 
 /* ---------- кнопки ---------- */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 15px;border:1px solid transparent;border-radius:var(--r-ctl);font-weight:500;white-space:nowrap;background:none}
-.btn-primary{background:var(--primary);color:#fff}
+a.btn{text-decoration:none;color:inherit}
+a.btn-primary,.btn-primary{background:var(--primary);color:#fff}
 .btn-primary:hover{background:var(--primary-hover)}
 .btn-flush{margin-left:-10px}
 .btn-secondary{background:var(--bg);border-color:var(--line-2)}
@@ -154,6 +155,66 @@ textarea.inp{height:auto;min-height:72px;padding:8px 11px;resize:vertical;line-h
 select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%236B6B72' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 10px center}
 .inp:focus{border-color:var(--ink-3);box-shadow:var(--focus);outline:none}
 .inp[aria-invalid=true]{border-color:var(--red)}
+.sel{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;cursor:pointer}
+.sel svg{flex:none;color:var(--ink-3)}
+.sel-v{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sel.is-empty .sel-v{color:var(--ink-3)}
+.sel[aria-expanded=true]{border-color:var(--ink-3);box-shadow:var(--focus)}
+/* всплывающее: список и календарь, как в shadcn */
+.pop{position:fixed;z-index:80;padding:4px;border:1px solid var(--line);border-radius:10px;background:var(--bg);box-shadow:0 10px 30px rgba(17,17,19,.12),0 1px 3px rgba(17,17,19,.06)}
+.pop-list{max-height:min(320px,50vh);overflow-y:auto}
+.opt{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:34px;padding:6px 10px;border-radius:7px;cursor:pointer;font-size:14.5px}
+.opt.is-act{background:var(--hover)}
+.opt[aria-selected=true]{font-weight:500}
+.opt-t small{display:block;font-size:12.5px;color:var(--ink-3);font-weight:400}
+.cal{width:288px;padding:12px}
+.cal-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.cal-t{font-weight:600;font-size:14.5px}
+.cal-nav{display:grid;place-items:center;width:30px;height:30px;padding:0;border:1px solid var(--line-2);border-radius:8px;background:var(--bg);color:var(--ink-2)}
+.cal-nav:hover{background:var(--hover)}
+.cal-g{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cal-w{display:grid;place-items:center;height:28px;font-size:12.5px;color:var(--ink-3)}
+.cal-d{height:34px;padding:0;border:0;border-radius:8px;background:none;font-size:14px;font-variant-numeric:tabular-nums}
+.cal-d:hover:not(:disabled){background:var(--hover)}
+.cal-d.is-today{background:var(--lane);font-weight:600}
+.cal-d.is-sel,.cal-d.is-sel:hover{background:var(--ink);color:#fff}
+.cal-d:disabled{color:#BDBDC3;cursor:default}
+.num-inp{position:relative}
+.num-inp .inp{padding-right:30px}
+.num-suf{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--ink-3);pointer-events:none}
+.counter{display:inline-flex;align-items:center;gap:4px;padding:2px;border:1px solid var(--line-2);border-radius:var(--r-ctl)}
+.counter .inp{width:46px;height:32px;padding:0;border:0;text-align:center}
+.counter .inp:focus{box-shadow:none}
+.counter .icon-btn{width:32px;height:32px}
+.counter .icon-btn:disabled{opacity:.35;cursor:default}
+/* форма заявки по шагам */
+.wiz{display:flex;list-style:none;margin:0;padding:0;gap:6px}
+.wiz li{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:6px}
+.wiz li:not(:last-child)::after{content:"";flex:1;min-width:8px;height:1px;background:var(--line-2)}
+.wiz li.is-done:not(:last-child)::after{background:var(--green)}
+.wiz button{display:flex;align-items:center;gap:8px;min-width:0;padding:4px 6px 4px 0;border:0;border-radius:8px;background:none;font-size:14px;color:var(--ink-3);white-space:nowrap}
+.wiz button:disabled{cursor:default}
+.wiz-n{flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1.5px solid var(--line-2);font-size:13px;font-weight:600}
+.wiz .is-now button{color:var(--ink);font-weight:600}
+.wiz .is-now .wiz-n{border-color:var(--ink);background:var(--ink);color:#fff}
+.wiz .is-done button{color:var(--ink-2)}
+.wiz .is-done .wiz-n{border-color:var(--green);background:var(--green);color:#fff}
+.wiz-t{overflow:hidden;text-overflow:ellipsis}
+.wiz-body{display:flex;flex-direction:column;min-height:300px}
+.choice{display:flex;flex-wrap:wrap;gap:8px}
+.choice label{display:flex;align-items:center;gap:8px;height:38px;padding:0 14px;border:1px solid var(--line-2);border-radius:var(--r-ctl);cursor:pointer}
+.choice label:hover{background:var(--hover)}
+.choice label.is-on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.choice input{accent-color:var(--ink);margin:0}
+.l-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
+.l-row .l{font-weight:500;font-size:14px}
+.l-row .seg button{height:28px}
+.sal-one{max-width:calc(50% - 8px)}
+/* замечание проверяющего у поля */
+.fnote{display:flex;gap:8px;align-items:flex-start;margin-bottom:6px;padding:8px 10px;border-radius:8px;background:var(--red-soft);color:#8A2A1F;font-size:14px}
+.fnote svg{flex:none;margin-top:2px}
+.has-note .inp,.has-note .counter{border-color:#E3A59D}
+.form-inline{display:flex;flex-direction:column;gap:16px}
 .err{display:block;margin-top:4px;color:var(--red);font-size:13.5px}
 .hint{display:block;margin-top:6px;color:var(--ink-3);font-size:13.5px}
 .seg{display:inline-flex;flex-wrap:wrap;padding:3px;border-radius:11px;background:var(--lane);gap:2px}
@@ -264,6 +325,9 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 .note{padding:14px 16px;border-radius:var(--r-box);background:var(--lane)}
 .note-t{font-weight:600}
 .note-q{margin:6px 0 0;white-space:pre-wrap}
+.ret-l{margin:8px 0 0;padding-left:18px}
+.ret-l li{margin:2px 0}
+.ret-l .link-btn{font-size:inherit;color:var(--ink);font-weight:600}
 .note-m{margin-top:4px;font-size:13.5px;color:var(--ink-3)}
 
 /* история: значок, что произошло и когда, ниже кто */
@@ -330,6 +394,61 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 .crej-r:hover{background:var(--hover)}
 .fb + .fb{margin-top:10px}
 
+/* ---------- задачи Finance и CEO: карточки решений, удобно с телефона ---------- */
+.tasks{display:flex;flex-direction:column;gap:28px;max-width:760px;margin:0 auto;padding:28px 24px 48px}
+.tasks-sec{display:flex;flex-direction:column;gap:12px}
+.tasks-st{margin:0;font-size:16px;font-weight:600}
+.tasks-st .num{font-weight:400}
+.task{display:flex;flex-direction:column;gap:16px;padding:18px 20px;border:1px solid var(--line);border-radius:var(--r-box);background:var(--bg)}
+.task-h{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.task-t h3{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em}
+.task-t h3 small{font-size:15px;font-weight:500;color:var(--ink-3)}
+.task-t .muted{font-size:14px}
+.task-h .btn{flex:none;margin:-4px -8px 0 0}
+.task-a{padding-top:14px;border-top:1px solid var(--line)}
+.tasks-empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:56px 16px;border:1px dashed var(--line-2);border-radius:var(--r-box);text-align:center;color:var(--green)}
+.tasks-empty p{margin:0;font-weight:600;color:var(--ink)}
+.tasks-done{display:flex;flex-direction:column;margin:0 -10px}
+.tasks-done a{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:16px;padding:8px 10px;border-radius:var(--r-ctl);color:var(--ink);text-decoration:none;font-size:14px}
+.tasks-done a:hover{background:var(--hover)}
+
+/* ---------- окно кандидата: слева сведения, справа документ (как в burabay-gis) ---------- */
+.cgrid{display:grid;grid-template-columns:360px minmax(0,1fr);gap:16px;align-items:start;padding:0 24px 24px}
+.cside{display:flex;flex-direction:column;gap:16px;min-width:0}
+.doc{display:flex;flex-direction:column;min-width:0;border-radius:var(--r-box);background:#F5F5F7;overflow:hidden}
+.doc-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;padding:10px 12px;border-bottom:1px solid #E5E5E7}
+.doc-bar .seg{background:#E8E8EB}
+.doc-t{padding-left:6px;font-weight:600}
+.doc-act{display:flex;align-items:center;gap:8px;margin-left:auto}
+.doc-act .sel{height:32px;font-size:14px}
+.doc-pane{padding:16px}
+.paper{max-width:720px;margin:0 auto;padding:40px 48px 48px;border-radius:10px;background:#FFFFFF;box-shadow:0 0 0 .5px rgba(0,0,0,.1),0 1px 3px rgba(0,0,0,.05);
+  font-family:'PT Serif',Georgia,serif;font-size:15px;line-height:1.6;color:#222}
+.paper p{margin:0 0 8px}
+.pp-h{margin:0;font-family:var(--font);font-size:24px;font-weight:600;letter-spacing:-.015em;color:var(--ink)}
+.pp-sub{margin:2px 0 6px!important;font-family:var(--font);font-size:15.5px;color:var(--ink-2)}
+.pp-c{font-family:var(--font);font-size:14px;color:var(--ink-3)}
+.pp-s{margin:24px 0 10px;padding-bottom:6px;border-bottom:1px solid #E7E7EA;font-family:var(--font);font-size:12.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.pp-job{display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;margin-bottom:12px}
+.pp-when{font-family:var(--font);font-size:13.5px;color:var(--ink-3);padding-top:2px}
+.pp-job ul{margin:4px 0 0;padding-left:18px}
+.doc-frame{display:block;width:100%;height:min(75vh,900px);border:0;border-radius:10px;background:#fff}
+.doc-img{display:block;max-width:100%;margin:0 auto;border-radius:10px;background:#fff}
+.no-scan{display:flex;flex-direction:column;align-items:center;gap:8px;padding:64px 16px;text-align:center;color:var(--ink-2)}
+.no-scan p{margin:0;font-weight:500;color:var(--ink)}
+/* режим замечаний: поле заявки нажимается */
+.fields .rev{position:relative;margin:-6px -8px;padding:6px 8px;border-radius:8px;cursor:pointer}
+.fields .rev:hover{background:var(--hover)}
+.fields .rev.is-on{background:var(--lane);cursor:default}
+.fields .rev.has-n{background:var(--red-soft)}
+.fields .rev dt{display:flex;justify-content:space-between;gap:8px}
+.rev-b{padding:0;border:0;background:none;font-size:13px;color:var(--ink-3);opacity:0;border-radius:4px}
+.rev:hover .rev-b,.rev.is-on .rev-b,.rev.has-n .rev-b,.rev-b:focus-visible{opacity:1}
+.rev.has-n .rev-b{color:#8A2A1F}
+.rev .fnote{margin:6px 0 0;background:#fff}
+.rev-t{margin-top:8px;background:#fff}
+@media (hover:none){.rev-b{opacity:1}}
+
 @media (max-width:1180px){
   .board{grid-template-columns:repeat(5,250px)}
 }
@@ -338,11 +457,18 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
   .side{display:none}
   .app.is-drawer .side{display:flex;position:fixed;z-index:50;top:0;bottom:0;left:0;width:min(300px,86vw)}
   .modal-wrap{padding:12px}
-  .mgrid{grid-template-columns:minmax(0,1fr)}
+  .mgrid,.cgrid{grid-template-columns:minmax(0,1fr)}
 }
 @media (max-width:720px){
   .bar{height:56px;gap:8px;padding:0 12px 0 8px}
   .bar .crumbs{display:none}
+  .bar:not(:has(.search)) .crumbs{display:flex}
+  .tasks{padding:16px 12px 32px;gap:20px}
+  .task{padding:16px}
+  .task-a .acts-r,.task-a .row.is-end{width:100%}
+  .task-a .btn{flex:1 1 auto}
+  .tasks-done a{grid-template-columns:minmax(0,1fr) auto}
+  .tasks-done a span:nth-child(2){grid-row:2;grid-column:1}
   .bar .search{flex:1;width:auto;margin-left:0}
   .hide-s{display:none}
   .bar .btn-primary{width:38px;padding:0}
@@ -353,12 +479,18 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
   .m-head{padding:14px 8px 0 16px}
   .m-title{font-size:18px}
   .m-strip{padding:12px 16px 14px}
-  .mgrid,.mpage{padding:0 12px 16px;gap:12px}
+  .mgrid,.mpage,.cgrid{padding:0 12px 16px;gap:12px}
+  .paper{padding:24px 18px}
+  .pp-job{grid-template-columns:minmax(0,1fr);gap:2px}
+  .doc-pane{padding:8px}
   .mmain,.mside{gap:12px}
   .m-foot{padding:10px 16px 12px}
   .box{padding:16px}
   .fields,.fields.is-3{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px 16px}
   .grid2,.grid3,.grid-dc{grid-template-columns:minmax(0,1fr)}
+  .sal-one{max-width:none}
+  .wiz-t{display:none}
+  .wiz .is-now .wiz-t{display:inline}
   .cc{padding:14px}
   .clg-l{grid-template-columns:minmax(0,1fr)}
   .acts-r{margin-left:0}
