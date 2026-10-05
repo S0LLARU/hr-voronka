@@ -178,11 +178,11 @@ function App(){
     ${shown && html`<${Fragment}>
       <div className="scrim is-modal" ref=${scrim} onClick=${close}/>
       <div className=${'modal' + (wide ? '' : ' is-narrow')} ref=${modal} role="dialog" aria-modal="true" aria-label=${label}>
-        <div className="m-bar">
+        ${crumbs.length > 0 && html`<div className="m-bar">
           <${Crumbs} items=${crumbs}/>
           <button className="icon-btn" aria-label="Закрыть" onClick=${close}><${Icon} n="x" s=${18}/></button>
-        </div>
-        <div className="m-body" ref=${body}>${content}</div>
+        </div>`}
+        <div className="m-body" ref=${body}><${ModalClose.Provider} value=${crumbs.length ? null : close}>${content}<//></div>
       </div>
     <//>`}
   </div>`;
