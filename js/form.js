@@ -117,7 +117,7 @@ function RequestForm({r, onClose}){
     ${ask ? html`<div className="guard foot-bar" role="alert"><span>Есть несохранённые изменения.</span>
         <${Btn} kind="primary" onClick=${() => { setAsk(false); save(false); }}>Сохранить черновик<//>
         <${Btn} kind="danger" onClick=${() => { const then = ask; setAsk(false); setDirty(false); Panel.leave = f => f(); then(); }}>Не сохранять<//>
-        <${Btn} kind="ghost" onClick=${() => setAsk(false)}>Вернуться к форме<//></div>`
+        <${Btn} kind="ghost" onClick=${() => setAsk(false)}>Остаться<//></div>`
       : html`<div className="foot-bar">
         <${Btn} kind="primary" lg=${true} onClick=${() => save(true)}>${returned ? 'Отправить снова' : 'Отправить в HR'}<//>
         ${!returned && html`<${Btn} lg=${true} onClick=${() => save(false)}>Сохранить черновик<//>`}

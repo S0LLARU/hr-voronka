@@ -465,7 +465,7 @@ function InfoTab({r, v}){
 
 /* лента событий справа: что было, кто и когда. Длинная история свёрнута до последних событий */
 const TL_ICON = {new:'doc', ok:'ok', stop:'no', ret:'ret', ev:'ev'};
-const whoLine = id => { const p = Model.PEOPLE[id]; return p ? p.name + ', ' + (p.role === 'manager' ? 'руководитель' : p.role === 'recruiter' ? 'рекрутер' : Model.ROLE[p.role]) : ''; };
+const whoLine = id => { const p = Model.PEOPLE[id]; return p ? Model.short(p.name) + ', ' + (p.role === 'manager' ? 'руководитель' : p.role === 'recruiter' ? 'рекрутер' : Model.ROLE[p.role]) : ''; };
 /* записи в истории написаны от мужского рода; для женщин глагол меняется при показе */
 const FEM = /^(Создал|Отправил|Вернул|Принял|Согласовал|Отклонил|Одобрил|Назначил|Взял|Опубликовал|Добавил|Отказал|Отметил|Снял|Продлил|Отменил|Изменил|Доработал)(?=[\s:])/;
 const byGender = (text, id) => !(Model.PEOPLE[id] || {}).f ? text : text.replace(FEM, '$1а').replace(/^Учёл/, 'Учла').replace(' и отправил ', ' и отправила ');
@@ -485,8 +485,8 @@ function Timeline({items, limit = 8}){
     <ol className="tl">${items.slice(hidden).map((x, i) => html`<li key=${i}>
       <span className=${'tl-i is-' + x.kind}><${Icon} n=${TL_ICON[x.kind]} s=${20}/></span>
       <div className="tl-b">
-        <div className="tl-top"><span className="tl-t">${x.title}</span><time className="tl-d num">${Model.fmtDateTime(x.at)}</time></div>
-        ${x.who && html`<div className="tl-w">${x.who}</div>`}
+        <div className="tl-t">${x.title}</div>
+        <div className="tl-w"><span>${x.who}</span><time className="tl-d num">${Model.fmtDateTime(x.at)}</time></div>
         ${x.comment && html`<blockquote className="tl-c">${x.comment}</blockquote>`}
       </div>
     </li>`)}</ol>
@@ -588,7 +588,7 @@ function RequestPage({r, view, cid}){
           ['Желаемый выход', Model.fmtDate(r.start, true)],
           ['Срок закрытия', r.deadline && html`<span className=${'num' + (late ? ' late' : '')}>${late ? html`<${Icon} n="late" s=${14} label="Срок прошёл"/> ` : ''}${Model.fmtDate(r.deadline, true)}</span>`],
           ['Зарплата', p.salary && r.salary],
-          ['Последнее изменение', Model.fmtDate(r.updated, true)]]}/>
+          ['Изменена', Model.fmtDate(r.updated, true)]]}/>
       </section>
     </aside>
   </div>`;

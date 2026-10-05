@@ -176,12 +176,14 @@ function App(){
     </div>
     ${shown && html`<${Fragment}>
       <div className="scrim is-modal" ref=${scrim} onClick=${close}/>
+      <div className="modal-wrap">
       <div className=${'modal' + (wide ? '' : ' is-narrow')} ref=${modal} role="dialog" aria-modal="true" aria-label=${label}>
         <div className="m-head">
           <div className="m-slot" ref=${setSlot}/>
           <button className="icon-btn m-x" aria-label="Закрыть" onClick=${close}><${Icon} n="x" s=${18}/></button>
         </div>
         <div className="m-body" ref=${body}><${ModalSlot.Provider} value=${slot}>${content}<//></div>
+      </div>
       </div>
     <//>`}
   </div>`;
