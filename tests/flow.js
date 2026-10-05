@@ -36,24 +36,24 @@ const OUT=process.argv[2];
   await as('Арман'); await open(T); await btn('Одобрить'); await close();
   console.log('approved:', await col(T));
   await as('Гульнара'); await open(T); await p.selectOption('.modal select[data-k=rec]', 'sam'); await btn('Назначить'); await close();
-  await as('Самат'); await open(T); await btn('Взять в работу'); await btn('Опубликовано'); 
+  await as('Самат'); await open(T); await btn('Опубликовано'); 
   console.log('published:', await col(T));
   await btn('Добавить кандидата'); await btn('Добавить');
   console.log('cand errs:', await p.$$eval('.modal .err',e=>e.map(x=>x.textContent).join('; ')));
   await p.fill('#ac-name','Олжас Тулеуов'); await p.fill('#ac-phone','+7 701 555 12 34'); await p.selectOption('#ac-source','HH');
   await btn('Добавить');
-  await btn('Пригласить на интервью'); await btn('Пригласить'); await btn('Передать руководителю');
+  await btn('Пригласить на интервью'); await btn('Пригласить'); await btn('Руководителю на решение');
   await p.screenshot({path:OUT+'/f-cand.png'});
   await close();
   await as('Данияр'); console.log('mgr turn:', await col(T)); await open(T);
-  await btn('Одобрить'); await btn('Одобрить кандидата'); await close();
+  await btn('Одобрить кандидата'); await p.click('.modal .decide button:text-is("Одобрить")'); await p.waitForTimeout(350); await close();
   await as('Самат'); await open(T); await p.click('.modal .cc-n:has-text("Олжас")'); await p.waitForTimeout(400);
   await btn('Отправить оффер'); await btn('Согласился'); await close();
   console.log('accepted:', await col(T));
   await open(T);
-  for(const who of ['Самат']){ const boxes=await p.locator('.modal .ck input:not([disabled])').elementHandles(); for(const bx of boxes){ if(!(await bx.isChecked())) await bx.check(); } }
+  { while(await p.locator('.modal .clg button:has-text("Всё сделано")').count()){ await p.locator('.modal .clg button:has-text("Всё сделано")').first().click(); await p.waitForTimeout(150); } }
   await close(); await as('Олжас'); await open(T);
-  { const boxes=await p.locator('.modal .ck input:not([disabled])').elementHandles(); for(const bx of boxes){ if(!(await bx.isChecked())) await bx.check(); } }
+  { while(await p.locator('.modal .clg button:has-text("Всё сделано")').count()){ await p.locator('.modal .clg button:has-text("Всё сделано")').first().click(); await p.waitForTimeout(150); } }
   await close(); await as('Самат'); await open(T); await p.screenshot({path:OUT+'/f-prep.png'});
   await btn('Вышел на стажировку'); await close();
   console.log('intern:', await col(T));
@@ -62,7 +62,7 @@ const OUT=process.argv[2];
   await p.click('.modal .seg button:has-text("Нанимаем")'); await p.fill('.modal textarea','Берём.'); await btn('Сохранить решение'); await close();
   console.log('docs:', await col(T));
   await as('Самат'); await open(T);
-  { const boxes=await p.locator('.modal .ck input:not([disabled])').elementHandles(); for(const bx of boxes){ if(!(await bx.isChecked())) await bx.check(); } }
+  { while(await p.locator('.modal .clg button:has-text("Всё сделано")').count()){ await p.locator('.modal .clg button:has-text("Всё сделано")').first().click(); await p.waitForTimeout(150); } }
   await btn('Сотрудник оформлен'); await close();
   await as('Ринат'); console.log('fin:', await col(T)); await open(T); await btn('Принято в работу'); await btn('Учтено в ФОТ'); await btn('Учтено в ФОТ'); await close();
   console.log('final:', await col(T));

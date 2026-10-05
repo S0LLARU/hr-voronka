@@ -64,10 +64,10 @@ function approveSteps(r){
   ];
 }
 function searchSteps(r){
-  const st = r.status, tk = lastLog(r, 'take'), pubs = r.publications || [], n = r.candidates.length;
+  const st = r.status, pubs = r.publications || [], n = r.candidates.length;
   return [
-    {k:'rec', label:'Рекрутер', state:tk ? 'done' : st === 'assign' || st === 'assigned' ? 'now' : 'next', tip:r.recruiter ? name(r.recruiter) : ''},
-    {k:'pub', label:'Публикация', state:pubs.length ? 'done' : st === 'inwork' ? 'now' : 'next', tip:pubs.map(x => x.platform + ' ' + Model.fmtDate(x.date)).join(', ')},
+    {k:'rec', label:'Рекрутер', state:r.recruiter ? 'done' : st === 'assign' ? 'now' : 'next', tip:r.recruiter ? name(r.recruiter) : ''},
+    {k:'pub', label:'Публикация', state:pubs.length ? 'done' : st === 'inwork' || st === 'assigned' ? 'now' : 'next', tip:pubs.map(x => x.platform + ' ' + Model.fmtDate(x.date)).join(', ')},
     {k:'search', label:'Подбор', state:Model.activeHires(r).length >= r.seats ? 'done' : st === 'published' ? 'now' : 'next',
       tip:n ? n + ' ' + Model.plural(n, 'кандидат', 'кандидата', 'кандидатов') : ''}
   ];
@@ -164,22 +164,30 @@ function Stopped({r}){
   return html`<${Note} title=${title} by=${l.by} at=${l.at} quote=${r.status === 'cancelled' ? r.cancel.comment : l.comment}/>`;
 }
 
-/* ---------- чек-лист: строка — пункт, справа кто делает или кто и когда сделал ---------- */
+/* ---------- чек-лист: каждый исполнитель отмечает свою часть разом ----------
+   Пункты — памятка, что входит в шаг. Отмечать каждый никто не станет, поэтому одна кнопка «Всё сделано»
+   на исполнителя; у сделанного — кто и когда. */
 const WHO_ORDER = ['recruiter', 'recruiter it', 'it', 'manager', 'mentor'];
 function Checklist({r, h, list, v, who}){
   const items = h.lists[list];
   if(!items) return null;
-  const done = items.filter(i => i.done).length;
-  const rows = items.map((it, i) => [it, i]).sort((a, b) => WHO_ORDER.indexOf(a[0].who) - WHO_ORDER.indexOf(b[0].who));
-  return html`<${Box} title=${Model.LISTS[list].name + (who ? ': ' + who : '')} aside=${html`<span className="box-n num">${done} из ${items.length}</span>`}>
-    <ul className="cl">${rows.map(([it, i]) => {
-      const can = Model.canCheck(it, r, v);
-      return html`<li key=${i}><label className=${'ck' + (it.done ? ' is-done' : '') + (can ? '' : ' is-off')}>
-        <input type="checkbox" checked=${!!it.done} disabled=${!can} onChange=${e => Store.dispatch('check', {id:r.id, hid:h.id, list, i, done:e.target.checked})}/>
-        <span className="ck-t">${it.t}${it.opt ? html` <span className="muted">при надобности</span>` : ''}</span>
-        <span className="ck-m">${it.done ? shortName(it.done.by) + ', ' + Model.fmtDate(it.done.at) : Model.WHO[it.who]}</span>
-      </label></li>`;
-    })}</ul>
+  const groups = WHO_ORDER.filter(w => items.some(i => i.who === w)).map(w => ({w, items:items.filter(i => i.who === w)}));
+  const ready = groups.filter(g => g.items.every(i => i.done)).length;
+  const set = (w, done) => Store.dispatch('checkGroup', {id:r.id, hid:h.id, list, who:w, done});
+  return html`<${Box} title=${Model.LISTS[list].name + (who ? ': ' + who : '')} aside=${html`<span className="box-n num">${ready} из ${groups.length} готово</span>`}>
+    <div className="clg-all">${groups.map(({w, items:its}) => {
+      const done = its.every(i => i.done), can = Model.canCheck(its[0], r, v);
+      const last = done && its.map(i => i.done).sort((a, b) => b.at - a.at)[0];
+      return html`<div key=${w} className=${'clg' + (done ? ' is-done' : '')}>
+        <div className="clg-h">
+          <span className="clg-w">${Model.WHO[w]}</span>
+          ${done ? html`<span className="clg-ok"><${Icon} n="ok" s=${16}/>Сделано, ${shortName(last.by)}, ${Model.fmtDate(last.at)}</span>
+              ${can && html`<button className="link-btn" onClick=${() => set(w, false)}>Вернуть</button>`}`
+            : can ? html`<${Btn} kind="primary" className="btn-sm" onClick=${() => set(w, true)}>Всё сделано<//>` : html`<span className="muted clg-wait">Не готово</span>`}
+        </div>
+        <ul className="clg-l">${its.map((it, i) => html`<li key=${i}>${it.t}${it.opt ? html` <span className="muted">при надобности</span>` : ''}</li>`)}</ul>
+      </div>`;
+    })}</div>
   <//>`;
 }
 
@@ -279,7 +287,7 @@ function CancelForm({r, onDone}){
       <${Field} label="Причина отмены" error=${!reason ? err : ''}><select className="inp" value=${reason} onChange=${e => { setReason(e.target.value); setErr(''); }}><option value="">Выберите</option>${Model.CANCEL.map(x => html`<option key=${x}>${x}</option>`)}</select><//>
       <${Field} label="Комментарий" optional=${reason !== 'Другое'} error=${reason ? err : ''}><input className="inp" value=${c} onInput=${e => { setC(e.target.value); setErr(''); }}/><//>
     </div>
-    <div className="row"><${Btn} kind="danger" onClick=${send}>Отменить заявку<//><${Btn} kind="ghost" onClick=${onDone}>Не отменять<//></div>
+    <div className="row is-end"><${Btn} kind="ghost" onClick=${onDone}>Не отменять<//><${Btn} kind="danger" onClick=${send}>Отменить заявку<//></div>
   </div>`;
 }
 
@@ -304,17 +312,17 @@ function CandActions({r, c, v, now, small}){
         <option value="">Выберите</option>${Model.REJECT.map(x => html`<option key=${x}>${x}</option>`)}</select><//>
       <${Field} label="Комментарий" optional=${reason !== 'Другое'} error=${err && reason ? err : ''}><input className="inp" value=${rc} onInput=${e => { setRc(e.target.value); setErr(''); }}/><//>
     </div>
-    <div className="row"><${Btn} kind="danger" onClick=${doReject}>Отказать<//><${Btn} kind="ghost" onClick=${() => { setRej(false); setErr(''); }}>Отмена<//></div>
+    <div className="row is-end"><${Btn} kind="ghost" onClick=${() => { setRej(false); setErr(''); }}>Отмена<//><${Btn} kind="danger" onClick=${doReject}>Отказать<//></div>
   </div>`;
 
   const actions = [];
   let fields = null;
   if(open && editor){
     if(c.stage === 'new') actions.push({label:'Пригласить на интервью', kind:'primary', ask:true, need:false, field:'Когда интервью', confirm:'Пригласить', run:x => d('move', {to:'hr', when:x})});
-    if(c.stage === 'hr') actions.push({label:'Передать руководителю', kind:'primary', run:() => d('move', {to:'mgr'})}, {label:'Отправить тестовое', run:() => d('move', {to:'test'})});
+    if(c.stage === 'hr') actions.push({label:'Руководителю на решение', kind:'primary', run:() => d('move', {to:'mgr'})}, {label:'Дать тестовое задание', run:() => d('move', {to:'test'})});
     if(c.stage === 'test'){
-      actions.push({label:'Передать руководителю', kind:'primary', run:() => d('move', {to:'mgr'})});
-      if(!c.timeline.some(x => x.text === 'Тестовое получено')) actions.push({label:'Тестовое получено', run:() => d('note', {text:'Тестовое получено'})});
+      actions.push({label:'Руководителю на решение', kind:'primary', run:() => d('move', {to:'mgr'})});
+      if(!c.timeline.some(x => x.text === 'Тестовое получено')) actions.push({label:'Тестовое сдано', run:() => d('note', {text:'Тестовое получено'})});
     }
     if(c.stage === 'approved'){
       fields = html`<div className="grid2 c-fields">
@@ -329,7 +337,7 @@ function CandActions({r, c, v, now, small}){
     }
   }
   if(open && c.stage === 'mgr' && manager) actions.push(
-    {label:'Одобрить', kind:'primary', ask:true, need:false, confirm:'Одобрить кандидата', note:'Рекрутер отправит кандидату оффер.', run:x => d('feedback', {verdict:'approve', comment:x})},
+    {label:'Одобрить кандидата', kind:'primary', ask:true, need:false, confirm:'Одобрить', note:'Рекрутер отправит кандидату оффер.', run:x => d('feedback', {verdict:'approve', comment:x})},
     {label:'Отказать', kind:'danger', ask:true, need:true, whom:'рекрутер', confirm:'Отказать кандидату', note:'Кандидат уйдёт в отказы, рекрутер увидит ваш комментарий. Вернуть кандидата нельзя.', run:x => d('feedback', {verdict:'reject', comment:x})});
   const canReject = open && editor && c.stage !== 'mgr' && c.stage !== 'offer';
   const extra = canReject && html`<${Btn} kind="ghost" className="btn-cancel" onClick=${() => setRej(true)}>${small ? 'Отказать' : 'Отказать кандидату'}<//>`;
@@ -464,8 +472,7 @@ function RequestPage({r, view, cid}){
     case 'ceo': actions.push({label:'Одобрить', kind:'primary', run:c => d('ceoApprove', {comment:c})},
       {label:'Отклонить', kind:'danger', ask:true, need:true, whom:'руководитель', confirm:'Отклонить заявку', note:REJECT_NOTE, run:c => d('ceoReject', {comment:c})}); break;
     case 'assign': form = 'assign'; break;
-    case 'assigned': actions.push({label:'Взять в работу', kind:'primary', run:() => d('take')}); break;
-    case 'inwork': form = 'publish'; break;
+    case 'assigned': case 'inwork': form = 'publish'; break;
   }
   let decide = null;
   mine.filter(t => t.h).forEach(t => {
@@ -601,7 +608,7 @@ function AddCandidate({r, onDone, onCancel, guard}){
       <${Field} label="Ссылка на резюме" optional=${true}><input className="inp" type="url" value=${f.resume} onInput=${set('resume')} placeholder="https://"/><//>
       <${Field} label="Комментарий" optional=${true}><textarea className="inp" rows="2" value=${f.comment} onInput=${set('comment')}/><//>
     <//>
-    <${ModalFoot}><div className="row"><${Btn} kind="primary" onClick=${send}>Добавить<//><${Btn} kind="ghost" onClick=${onCancel}>Отмена<//></div><//>
+    <${ModalFoot}><div className="row is-end"><${Btn} kind="ghost" onClick=${onCancel}>Отмена<//><${Btn} kind="primary" onClick=${send}>Добавить<//></div><//>
   </div>`;
 }
 const Panel = {leave:f => f()};

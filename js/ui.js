@@ -138,16 +138,17 @@ function Decide({actions, extra}){
       <textarea ref=${area} className="inp" rows="3" value=${text} onInput=${e => { setText(e.target.value); setErr(''); }}
         onKeyDown=${e => { if(e.key === 'Escape'){ e.stopPropagation(); setOpen(null); } }}/>
     <//>
-    <div className="row">
-      <${Btn} kind=${a.kind === 'danger' ? 'danger' : 'primary'} onClick=${go}>${a.confirm || a.label}<//>
+    <div className="row is-end">
       <${Btn} kind="ghost" onClick=${() => { setOpen(null); setErr(''); }}>Отмена<//>
+      <${Btn} kind=${a.kind === 'danger' ? 'danger' : 'primary'} onClick=${go}>${a.confirm || a.label}<//>
     </div>
   </div>`;
   if(!actions.length && !extra) return null;
-  return html`<div className="row">
-    ${actions.map((x, i) => html`<${Btn} key=${i} kind=${x.kind || 'secondary'} disabled=${x.disabled}
-      onClick=${() => x.ask ? setOpen(i) : x.run('')}>${x.label}<//>`)}
+  /* отмена и отказ — слева, решение — справа, главная кнопка крайняя справа */
+  return html`<div className="row acts">
     ${extra}
+    <div className="acts-r">${actions.map((x, i) => [x, i]).reverse().map(([x, i]) => html`<${Btn} key=${i} kind=${x.kind || 'secondary'} disabled=${x.disabled}
+      onClick=${() => x.ask ? setOpen(i) : x.run('')}>${x.label}<//>`)}</div>
   </div>`;
 }
 

@@ -135,7 +135,7 @@ const Model = (function(){
       finance:() => t.push({p:FIN, text:'Ждёт Finance', mine:'Согласовать заявку', since, sla:SLA.finance}),
       ceo:    () => t.push({p:CEO, text:'Ждёт решения CEO', mine:'Одобрить поиск', since, sla:SLA.ceo}),
       assign: () => t.push({p:HRD, text:'HRD назначает рекрутера', mine:'Назначить рекрутера', since, sla:SLA.assign}),
-      assigned:() => t.push({p:r.recruiter, text:'Рекрутер не взял в работу', mine:'Взять в работу', since, sla:SLA.assigned}),
+      assigned:() => t.push({p:r.recruiter, text:'Рекрутер публикует вакансию', mine:'Опубликовать вакансию', since, sla:SLA.inwork}),
       inwork: () => t.push({p:r.recruiter, text:'Рекрутер публикует вакансию', mine:'Опубликовать вакансию', since, sla:SLA.inwork})
     }[r.status];
     if(who){ who(); return t; }
@@ -259,13 +259,14 @@ const Model = (function(){
     ceoReject(S, by, at, p){ const r = find(S, p.id); status(r, 'rejected', at); r.closedAt = at; log(r, by, at, 'Отклонил открытие позиции', p.comment, 'reject'); },
     assign(S, by, at, p){
       const r = find(S, p.id); r.recruiter = p.recruiter; r.priority = p.priority; r.deadline = p.deadline;
-      status(r, 'assigned', at); log(r, by, at, 'Назначил рекрутера: ' + PEOPLE[p.recruiter].name, p.comment, 'assign');
+      /* назначенный рекрутер сразу в работе: отдельного «взять в работу» нет, его следующий шаг — публикация */
+      status(r, 'inwork', at); log(r, by, at, 'Назначил рекрутера: ' + PEOPLE[p.recruiter].name, p.comment, 'assign');
     },
     take(S, by, at, p){ const r = find(S, p.id); status(r, 'inwork', at); log(r, by, at, 'Взял в работу', '', 'take'); },
     publish(S, by, at, p){
       const r = find(S, p.id);
       r.publications.push({at, date:p.date, platform:p.platform, link:p.link || '', comment:p.comment || '', by});
-      if(r.status === 'inwork') status(r, 'published', at);
+      if(r.status === 'inwork' || r.status === 'assigned') status(r, 'published', at);
       log(r, by, at, 'Опубликовал вакансию: ' + p.platform, p.comment, 'publish');
     },
     addCandidate(S, by, at, p){
@@ -319,6 +320,12 @@ const Model = (function(){
       r.hires.push(h);
       ctl(c, at, by, 'Согласился, выход ' + fmtDate(p.start));
       log(r, by, at, c.name + ' согласился на оффер, выход ' + fmtDate(p.start), '', 'accepted');
+    },
+    /* исполнитель отмечает свою часть списка разом: «Всё сделано» */
+    checkGroup(S, by, at, p){
+      const r = find(S, p.id), h = hire(r, p.hid);
+      h.lists[p.list].forEach(it => { if(it.who === p.who) it.done = p.done ? {at, by} : null; });
+      log(r, by, at, (p.done ? 'Отметил выполненным: ' : 'Вернул в работу: ') + LISTS[p.list].name + ' (' + WHO[p.who] + ') — ' + short(h.name));
     },
     check(S, by, at, p){
       const r = find(S, p.id), h = hire(r, p.hid), it = h.lists[p.list][p.i];
@@ -446,7 +453,6 @@ const Model = (function(){
       if(upto >= 2) go(FIN, 'finApprove', {id, comment:s.fin || ''}, s.finAt);
       if(upto >= 3) go(CEO, 'ceoApprove', {id}, s.ceoAt);
       if(upto >= 4) go(HRD, 'assign', {id, recruiter:s.rec, priority:f.priority, deadline:s.deadline}, s.assignAt);
-      if(upto >= 5) go(s.rec, 'take', {id}, s.takeAt);
       if(upto >= 6) go(s.rec, 'publish', {id, date:t(s.pubAt), platform:'HH', link:'https://hh.kz/vacancy/' + (100000 + S.requests.length * 7919)}, s.pubAt);
       if(upto >= 6 && s.pub2) go(s.rec, 'publish', {id, date:t(s.pub2), platform:'Telegram', link:'', comment:'Канал вакансий и два профильных чата'}, s.pub2);
       return id;

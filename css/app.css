@@ -191,8 +191,13 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 .m-foot{flex:none;padding:14px 24px 18px;border-top:1px solid transparent;background:var(--bg);transition:border-color .15s}
 .modal.is-more .m-foot{border-top-color:var(--line)}
 .m-foot:empty{display:none}
-.m-foot .decide{max-width:720px}
-.btn-cancel{margin-left:auto;color:var(--red)}
+.acts{width:100%}
+.acts-r{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-left:auto}
+.row.is-end{justify-content:flex-end}
+.btn-sm{height:32px;padding:0 12px;font-size:14px}
+.link-btn{padding:0;border:0;background:none;color:var(--ink-3);font-size:13.5px;text-decoration:underline;text-underline-offset:3px;border-radius:4px}
+.link-btn:hover{color:var(--ink)}
+.btn-cancel{color:var(--red)}
 .btn-cancel:hover{background:var(--red-soft);color:var(--red)}
 .decide .note-m{margin:0 0 10px}
 
@@ -271,19 +276,20 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 .tl-more{display:inline-flex;align-items:center;gap:6px;margin:0 0 14px;height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:8px;background:var(--bg);color:var(--ink);font-size:13.5px;font-weight:500}
 .tl-more:hover{background:var(--hover)}
 
-/* чек-лист: строка — пункт; справа кто делает, у сделанного — кто и когда */
-.cl{list-style:none;margin:-4px -10px -6px;padding:0}
-.ck{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:12px;align-items:start;padding:8px 10px;border-radius:var(--r-ctl);cursor:pointer;line-height:1.4}
-.ck:hover{background:var(--hover)}
-.ck input{appearance:none;-webkit-appearance:none;width:18px;height:18px;margin:1px 0 0;border:1.5px solid #C4C4CA;border-radius:5px;background:var(--bg) no-repeat center/12px;cursor:pointer;transition:background-color .12s,border-color .12s}
-.ck input:checked{border-color:var(--ink);background-color:var(--ink);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='white' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 10.5l3.2 3L15 6.5'/%3E%3C/svg%3E")}
-.ck input:focus-visible{box-shadow:var(--focus)}
-.ck-m{font-size:13px;color:var(--ink-3);white-space:nowrap;padding-top:1px}
-.ck.is-done .ck-t{color:var(--ink-3)}
-.ck.is-off{cursor:default}
-.ck.is-off:hover{background:none}
-.ck.is-off input{cursor:default;border-color:var(--line-2);background-color:var(--lane)}
-.ck.is-off input:checked{border-color:#A9A9B0;background-color:#A9A9B0}
+/* чек-лист: исполнитель — строка с кнопкой «Всё сделано», под ней памятка пунктов */
+.clg-all{display:flex;flex-direction:column}
+.clg{padding:14px 0}
+.clg:first-child{padding-top:0}
+.clg:last-child{padding-bottom:0}
+.clg + .clg{border-top:1px solid var(--line)}
+.clg-h{display:flex;align-items:center;gap:12px;min-height:32px}
+.clg-w{font-weight:600;margin-right:auto}
+.clg-ok{display:inline-flex;align-items:center;gap:6px;color:var(--green);font-size:14px}
+.clg-wait{font-size:14px}
+.clg-l{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 24px;margin:8px 0 0;padding:0 0 0 18px;font-size:14px;color:var(--ink-2)}
+.clg-l li{padding-left:2px}
+.clg-l li::marker{color:var(--ink-3)}
+.clg.is-done .clg-l{color:var(--ink-3)}
 
 /* ---------- кандидаты: карточки по этапам ---------- */
 .cands{display:flex;flex-direction:column;gap:18px}
@@ -346,8 +352,7 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
   .fields,.fields.is-3{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px 16px}
   .grid2,.grid3,.grid-dc{grid-template-columns:minmax(0,1fr)}
   .cc{padding:14px}
-  .ck{grid-template-columns:18px minmax(0,1fr)}
-  .ck-m{grid-column:2;padding-top:0}
-  .btn-cancel{margin-left:0}
+  .clg-l{grid-template-columns:minmax(0,1fr)}
+  .acts-r{margin-left:0}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}

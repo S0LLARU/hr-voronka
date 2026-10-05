@@ -120,9 +120,9 @@ function RequestForm({r, onClose}){
         <${Btn} kind="primary" onClick=${() => { setAsk(false); save(false); }}>Сохранить черновик<//>
         <${Btn} kind="danger" onClick=${() => { const then = ask; setAsk(false); setDirty(false); Panel.leave = f => f(); then(); }}>Не сохранять<//>
         <${Btn} kind="ghost" onClick=${() => setAsk(false)}>Остаться<//></div>`
-      : html`<div className="row">
-        <${Btn} kind="primary" onClick=${() => save(true)}>${returned ? 'Отправить снова' : 'Отправить в HR'}<//>
+      : html`<div className="row is-end">
         <${Btn} onClick=${() => save(false)}>Сохранить черновик<//>
+        <${Btn} kind="primary" onClick=${() => save(true)}>${returned ? 'Отправить снова' : 'Отправить в HR'}<//>
       </div>`}<//>
   </div>`;
 }
