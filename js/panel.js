@@ -296,7 +296,6 @@ function CancelForm({r, onDone}){
 function CandActions({r, c, v, now, small}){
   const p = Model.perms(r, v), d = (type, x) => Store.dispatch(type, Object.assign({id:r.id, cid:c.id}, x));
   const [rej, setRej] = useState(false), [reason, setReason] = useState(''), [rc, setRc] = useState(''), [err, setErr] = useState('');
-  const [offer, setOffer] = useState({salary:r.salary, start:toInput(r.start && r.start > now ? r.start : now + 14 * Model.D)});
   const [start, setStart] = useState(toInput(c.offer ? c.offer.start : r.start));
   useEffect(() => { setRej(false); setErr(''); }, [c.stage]);
   const editor = p.editCandidates, manager = r.manager === v, open = c.stage !== 'rejected' && c.stage !== 'accepted';
@@ -318,19 +317,16 @@ function CandActions({r, c, v, now, small}){
   const actions = [];
   let fields = null;
   if(open && editor){
-    if(c.stage === 'new') actions.push({label:'Пригласить на интервью', kind:'primary', ask:true, need:false, field:'Когда интервью', confirm:'Пригласить', run:x => d('move', {to:'hr', when:x})});
+    if(c.stage === 'new') actions.push({label:'Пригласить на интервью', kind:'primary', run:() => d('move', {to:'hr'})});
     if(c.stage === 'hr') actions.push({label:'Руководителю на решение', kind:'primary', run:() => d('move', {to:'mgr'})}, {label:'Дать тестовое задание', run:() => d('move', {to:'test'})});
     if(c.stage === 'test'){
       actions.push({label:'Руководителю на решение', kind:'primary', run:() => d('move', {to:'mgr'})});
       if(!c.timeline.some(x => x.text === 'Тестовое получено')) actions.push({label:'Тестовое сдано', run:() => d('note', {text:'Тестовое получено'})});
     }
-    if(c.stage === 'approved'){
-      fields = html`<div className="grid2 c-fields">
-        <${Field} label="Оклад в оффере"><input className="inp" value=${offer.salary} onInput=${e => setOffer(Object.assign({}, offer, {salary:e.target.value}))}/><//>
-        <${Field} label="Дата выхода"><input className="inp" type="date" value=${offer.start} onInput=${e => setOffer(Object.assign({}, offer, {start:e.target.value}))}/><//></div>`;
-      actions.push({label:'Отправить оффер', kind:'primary', run:() => d('offer', {salary:offer.salary, start:fromInput(offer.start)})});
-    }
+    /* оклад согласован в заявке, отдельно его не вводят */
+    if(c.stage === 'approved') actions.push({label:'Оффер отправлен', kind:'primary', run:() => d('offer', {salary:r.salary, start:r.start})});
     if(c.stage === 'offer'){
+      /* дату выхода спрашиваем один раз — когда кандидат согласился: от неё считается подготовка, её получает Finance */
       fields = html`<div className="grid2 c-fields"><${Field} label="Дата выхода"><input className="inp" type="date" value=${start} onInput=${e => setStart(e.target.value)}/><//></div>`;
       actions.push({label:'Согласился', kind:'primary', run:() => d('accepted', {start:fromInput(start)})},
         {label:'Отказался', kind:'danger', run:() => d('reject', {reason:'Отказался сам', comment:'Отказался от оффера'})});

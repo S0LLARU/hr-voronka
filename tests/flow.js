@@ -42,13 +42,13 @@ const OUT=process.argv[2];
   console.log('cand errs:', await p.$$eval('.modal .err',e=>e.map(x=>x.textContent).join('; ')));
   await p.fill('#ac-name','Олжас Тулеуов'); await p.fill('#ac-phone','+7 701 555 12 34'); await p.selectOption('#ac-source','HH');
   await btn('Добавить');
-  await btn('Пригласить на интервью'); await btn('Пригласить'); await btn('Руководителю на решение');
+  await btn('Пригласить на интервью'); await btn('Руководителю на решение');
   await p.screenshot({path:OUT+'/f-cand.png'});
   await close();
   await as('Данияр'); console.log('mgr turn:', await col(T)); await open(T);
   await btn('Одобрить кандидата'); await p.click('.modal .decide button:text-is("Одобрить")'); await p.waitForTimeout(350); await close();
   await as('Самат'); await open(T); await p.click('.modal .cc-n:has-text("Олжас")'); await p.waitForTimeout(400);
-  await btn('Отправить оффер'); await btn('Согласился'); await close();
+  await btn('Оффер отправлен'); await btn('Согласился'); await close();
   console.log('accepted:', await col(T));
   await open(T);
   { while(await p.locator('.modal .clg button:has-text("Всё сделано")').count()){ await p.locator('.modal .clg button:has-text("Всё сделано")').first().click(); await p.waitForTimeout(150); } }
