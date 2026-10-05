@@ -74,8 +74,8 @@ a{color:var(--accent)}
 .crumbs .cur{color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .content{flex:1;min-height:0;overflow:auto;position:relative}
 
-/* доска на всю высоту: прокручиваются колонки, а не страница */
-.board-page{display:flex;flex-direction:column;height:100%}
+/* доска листается целиком: колонки растут по карточкам, прокручивается вся страница */
+.board-page{display:flex;flex-direction:column;min-height:100%}
 .tools{display:flex;align-items:center;gap:12px;padding:22px 24px 18px;flex:none;flex-wrap:wrap}
 .search{position:relative;width:300px;margin-left:auto}
 .search svg{position:absolute;left:11px;top:50%;margin-top:-8px;color:var(--ink-3);pointer-events:none}
@@ -109,12 +109,12 @@ a{color:var(--accent)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 
 /* ---------- доска ---------- */
-.board{flex:1;display:grid;grid-template-columns:repeat(4,minmax(204px,1fr)) minmax(180px,.8fr);gap:12px;padding:0 24px 24px;min-height:0;overflow-x:auto}
-.col{display:flex;flex-direction:column;min-height:0;border-radius:var(--r-box);background:var(--lane)}
+.board{flex:1;display:grid;grid-template-columns:repeat(4,minmax(204px,1fr)) minmax(180px,.8fr);gap:12px;padding:0 24px 24px;overflow-x:auto}
+.col{display:flex;flex-direction:column;border-radius:var(--r-box);background:var(--lane)}
 .col-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:13px 16px 9px}
 .col-n{font-weight:600}
 .col-c{color:var(--ink-3);font-size:13.5px}
-.col-list{display:flex;flex-direction:column;gap:8px;padding:2px 8px 10px;overflow-y:auto;min-height:0;flex:1}
+.col-list{display:flex;flex-direction:column;gap:8px;padding:2px 8px 10px;flex:1}
 .empty-line{padding:24px 0;color:var(--ink-3);text-align:center;grid-column:1/-1}
 
 .card{display:block;width:100%;padding:12px 13px 11px;border:1px solid var(--line);border-radius:var(--r-card);background:var(--bg);text-align:left;

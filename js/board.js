@@ -97,10 +97,10 @@ function Board({list, v, now, current, onOpen, version}){
     });
     rects.current = boardMem.rects = next;
   });
-  /* при прокрутке колонки и смене ширины окна места пересчитываются без анимации */
+  /* при прокрутке доски и смене ширины окна места пересчитываются без анимации */
   useEffect(() => {
     const re = () => { const m = new Map(); ref.current && ref.current.querySelectorAll('[data-card]').forEach(el => m.set(el.dataset.card, el.getBoundingClientRect())); rects.current = boardMem.rects = m; };
-    addEventListener('resize', re); const s = ref.current; s && s.addEventListener('scroll', re, true);
+    addEventListener('resize', re); const s = ref.current && (ref.current.closest('.content') || ref.current); s && s.addEventListener('scroll', re, true);
     return () => { removeEventListener('resize', re); s && s.removeEventListener('scroll', re, true); };
   }, []);
 
