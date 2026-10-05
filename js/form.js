@@ -54,7 +54,7 @@ function RequestForm({r, onClose}){
   return html`<div className="mpage" ref=${box}>
     <${ModalHead} title=${r ? (r.status === 'draft' ? 'Черновик заявки' : 'Доработка заявки') : 'Новая заявка на подбор'} sub=${r && html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`} strip=${html`<${Strip} rows=${[{steps:approveSteps(r || BLANK)}]}/>`}/>
     ${returned && html`<${Note} title="Что просят исправить" by=${r.returned.by} at=${r.returned.at} quote=${r.returned.comment}/>`}
-    <section className="form-sec"><h3>Общая информация</h3>
+    <${Box} title="Общая информация">
       <div className="grid-dc">
         <${Field} label="Должность" error=${err.title}>${inp('title', {autoComplete:'off'})}<//>
         <${Field} label="Проект" error=${err.project}>${inp('project')}<//>
@@ -72,9 +72,9 @@ function RequestForm({r, onClose}){
         ${err.reason && html`<span className="err">${err.reason}</span>`}
       </div>
       ${f.reason === 'other' && html`<${Field} label="Какая причина" error=${err.reasonOther}>${inp('reasonOther')}<//>`}
-    </section>
+    <//>
 
-    <section className="form-sec"><h3>Кого ищем</h3>
+    <${Box} title="Кого ищем">
       <div className="grid2">
         <${Field} label="Основные обязанности" error=${err.duties}>${area('duties', 3)}<//>
         <${Field} label="Требования" error=${err.reqs}>${area('reqs', 3)}<//>
@@ -88,9 +88,9 @@ function RequestForm({r, onClose}){
         <${Field} label="Образование" optional=${true}>${inp('education')}<//>
         <${Field} label="Дополнительные требования" optional=${true}>${inp('extra')}<//>
       </div>
-    </section>
+    <//>
 
-    <section className="form-sec"><h3>Условия</h3>
+    <${Box} title="Условия">
       <div className="field"><span className="l">Формат работы</span><${Seg} label="Формат работы" value=${f.format} onChange=${set('format')} options=${Model.FORMATS.map(x => [x, x])}/></div>
       <div className="grid3">
         <${Field} label="Локация" error=${err.location}>${inp('location')}<//>
@@ -101,9 +101,9 @@ function RequestForm({r, onClose}){
         <${Field} label="Испытательный срок" optional=${true}>${inp('probation')}<//>
         <${Field} label="Желаемая дата выхода" error=${err.start}>${inp('start', {type:'date'})}<//>
       </div>
-    </section>
+    <//>
 
-    <section className="form-sec"><h3>Дополнительно</h3>
+    <${Box} title="Дополнительно">
       <div className="grid-dc">
         <div className="field"><span className="l">Приоритет</span><${Seg} label="Приоритет" value=${f.priority} onChange=${set('priority')} options=${[['normal','Обычный'],['high','Срочно']]}/></div>
         <${Field} label="Комментарий для HR" optional=${true}>${inp('comment')}<//>
@@ -115,7 +115,7 @@ function RequestForm({r, onClose}){
         <${Btn} onClick=${() => file.current.click()}><${Icon} n="clip" s=${15}/>Прикрепить ТЗ или материалы<//>
         <input ref=${file} type="file" multiple hidden onChange=${e => { const fs = Array.from(e.target.files).map(x => ({name:x.name, size:x.size})); if(fs.length) set('files')(f.files.concat(fs)); e.target.value = ''; }}/>
       </div>
-    </section>
+    <//>
     <${ModalFoot}>${ask ? html`<div className="row guard-row" role="alert"><span>Есть несохранённые изменения.</span>
         <${Btn} kind="primary" onClick=${() => { setAsk(false); save(false); }}>Сохранить черновик<//>
         <${Btn} kind="danger" onClick=${() => { const then = ask; setAsk(false); setDirty(false); Panel.leave = f => f(); then(); }}>Не сохранять<//>

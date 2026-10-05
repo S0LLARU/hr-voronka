@@ -70,18 +70,13 @@ function Crumbs({items}){
   </ol>`;
 }
 
-function BoardPage({S, v, now, focusId}){
-  const [q, setQ] = useState('');
+function BoardPage({S, v, now, focusId, q}){
   const visible = S.requests.filter(r => Model.visible(r, v));
   const ql = q.trim().toLowerCase();
   const match = r => !ql || [r.title, r.dept, r.project, name(r.manager), name(r.recruiter), ...r.candidates.map(c => c.name)].some(s => s && s.toLowerCase().includes(ql));
   const list = visible.filter(match);
   return html`<div className="board-page">
     <h1 className="sr">Заявки на подбор</h1>
-    <div className="tools">
-      <label className="search"><span className="sr">Поиск заявок</span><${Icon} n="search"/>
-        <input type="search" value=${q} onInput=${e => setQ(e.target.value)} placeholder="Должность, проект, человек"/></label>
-    </div>
     ${ql && !list.length ? html`<p className="empty-line">По запросу «${q.trim()}» заявок нет</p>` : null}
     <${Board} list=${list} v=${v} now=${now} current=${focusId} onOpen=${id => go('#/r/' + id)} version=${Store.version()}/>
   </div>`;
@@ -91,7 +86,7 @@ function App(){
   const S = useStore(), v = useViewer(), now = useNow(), hash = useHash(), route = parse(hash);
   const me = Model.PEOPLE[v];
   const [side, setSide] = useState(() => { try { return localStorage.getItem('hr-side') !== '0'; } catch(e) { return true; } });
-  const [drawer, setDrawer] = useState(false);
+  const [drawer, setDrawer] = useState(false), [q, setQ] = useState('');
   const narrow = () => matchMedia('(max-width:900px)').matches;
   const toggleSide = () => {
     if(narrow()){ setDrawer(!drawer); return; }
@@ -141,6 +136,14 @@ function App(){
     const f = modal.current && modal.current.querySelector('[data-autofocus]'); if(f) f.focus({preventScroll:true});
   }, [key, slot]);
   useEffect(() => { if(!shown) prevKey.current = ''; }, [!!shown]);
+  /* черта под шапкой и над кнопками — только когда под ними уходит содержимое */
+  useEffect(() => {
+    const b = body.current, m = modal.current; if(!b || !m) return;
+    const f = () => { m.classList.toggle('is-scrolled', b.scrollTop > 0); m.classList.toggle('is-more', b.scrollTop + b.clientHeight < b.scrollHeight - 1); };
+    f(); b.addEventListener('scroll', f);
+    const ro = new ResizeObserver(f); ro.observe(b); if(b.firstElementChild) ro.observe(b.firstElementChild);
+    return () => { b.removeEventListener('scroll', f); ro.disconnect(); };
+  }, [!!shown, key, slot]);
 
   const sr = shown && shown.id ? S.requests.find(r => r.id === shown.id) : null;
   let content = null, wide = true, label = '';
@@ -163,9 +166,11 @@ function App(){
         <header className="bar">
           <button className="icon-btn" aria-label=${side && !drawer ? 'Скрыть меню' : 'Показать меню'} onClick=${toggleSide}><${Icon} n="side" s=${18}/></button>
           <${Crumbs} items=${[['Заявки на подбор']]}/>
+          <label className="search"><span className="sr">Поиск заявок</span><${Icon} n="search"/>
+            <input type="search" value=${q} onInput=${e => setQ(e.target.value)} placeholder="Должность, проект, человек"/></label>
           ${canCreate && html`<${Btn} kind="primary" aria-label="Создать заявку" onClick=${() => nav('#/new')}><${Icon} n="plus"/><span className="hide-s">Создать заявку</span><//>`}
         </header>
-        <main className="content"><${BoardPage} S=${S} v=${v} now=${now} focusId=${shown && shown.id}/></main>
+        <main className="content"><${BoardPage} S=${S} v=${v} now=${now} q=${q} focusId=${shown && shown.id}/></main>
       </div>
     </div>
     ${shown && html`<${Fragment}>
