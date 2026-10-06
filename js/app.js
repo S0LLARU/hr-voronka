@@ -141,22 +141,14 @@ function App(){
   }, [key, slot]);
   useEffect(() => { if(!shown) prevKey.current = ''; }, [!!shown]);
   /* черта под шапкой и над кнопками — только когда под ними уходит содержимое.
-     Колонки окна едут вместе с прокруткой, если им хватает места (решение пользователя): колонка ниже окна
-     прокручивается до своего низа и дальше стоит, колонка короче окна стоит сверху. Высота окна — в --bh,
-     по ней лист резюме прокручивается сам по себе */
+     Высота окна — в --bh, по ней лист резюме прокручивается сам по себе */
   useEffect(() => {
     const b = body.current, m = modal.current; if(!b || !m) return;
     const f = () => { m.classList.toggle('is-scrolled', b.scrollTop > 0); m.classList.toggle('is-more', b.scrollTop + b.clientHeight < b.scrollHeight - 1); };
-    const stick = () => {
-      const h = b.clientHeight; m.style.setProperty('--bh', h + 'px');
-      b.querySelectorAll('.mmain, .mside, .cside').forEach(el => { el.style.top = Math.min(0, h - el.offsetHeight - 24) + 'px'; });
-    };
-    const all = () => { stick(); f(); };
+    const all = () => { m.style.setProperty('--bh', b.clientHeight + 'px'); f(); };
     all(); b.addEventListener('scroll', f);
-    const ro = new ResizeObserver(all); ro.observe(b);
-    const watch = () => { ro.observe(b.firstElementChild || b); b.querySelectorAll('.mmain, .mside, .cside').forEach(el => ro.observe(el)); };
-    watch(); const mo = new MutationObserver(() => { watch(); all(); }); mo.observe(b, {childList:true, subtree:false});
-    return () => { b.removeEventListener('scroll', f); ro.disconnect(); mo.disconnect(); };
+    const ro = new ResizeObserver(all); ro.observe(b); if(b.firstElementChild) ro.observe(b.firstElementChild);
+    return () => { b.removeEventListener('scroll', f); ro.disconnect(); };
   }, [!!shown, key, slot]);
 
   const sr = shown && shown.id ? S.requests.find(r => r.id === shown.id) : null;

@@ -291,8 +291,6 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 /* ---------- содержимое: блоки в рамке, как в Finance ---------- */
 .mgrid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start;padding:0 24px 24px}
 .mmain,.mside{display:flex;flex-direction:column;gap:16px;min-width:0}
-/* колонки едут вместе с прокруткой, top считает app.js по высоте окна */
-.mmain,.mside,.cside{position:sticky;top:0}
 .mpage{display:flex;flex-direction:column;gap:16px;padding:0 24px 24px}
 .box{min-width:0;padding:18px 20px 20px;border:1px solid var(--line);border-radius:var(--r-box);background:var(--bg)}
 .box-h{display:flex;align-items:baseline;gap:10px;margin-bottom:16px}
@@ -464,7 +462,7 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
   .app.is-drawer .side{display:flex;position:fixed;z-index:50;top:0;bottom:0;left:0;width:min(300px,86vw)}
   .modal-wrap{padding:12px}
   .mgrid,.cgrid{grid-template-columns:minmax(0,1fr)}
-  .mmain,.mside,.cside,.doc{position:static}
+  .doc{position:static}
   .doc{height:auto}
   .doc-pane{overflow:visible}
   .doc-frame{height:70vh}
