@@ -352,18 +352,28 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 
 /* чек-лист: исполнитель — строка с кнопкой «Всё сделано», под ней памятка пунктов */
 .clg-all{display:flex;flex-direction:column}
-.clg{padding:14px 0}
+.clg{padding:12px 0}
 .clg:first-child{padding-top:0}
 .clg:last-child{padding-bottom:0}
 .clg + .clg{border-top:1px solid var(--line)}
-.clg-h{display:flex;align-items:center;gap:12px;min-height:32px}
-.clg-w{font-weight:600;margin-right:auto}
-.clg-ok{display:inline-flex;align-items:center;gap:6px;color:var(--green);font-size:14px}
+.clg-h{display:flex;align-items:center;gap:10px;min-height:28px}
+.clg-w{font-weight:600}
+.clg-n{color:var(--ink-3);font-size:14px}
+.clg-r{display:flex;align-items:center;gap:12px;margin-left:auto}
+.clg-ok{display:inline-flex;align-items:center;gap:5px;color:var(--green);font-size:14px}
 .clg-wait{font-size:14px}
-.clg-l{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 24px;margin:8px 0 0;padding:0 0 0 18px;font-size:14px;color:var(--ink-2)}
-.clg-l li{padding-left:2px}
-.clg-l li::marker{color:var(--ink-3)}
-.clg.is-done .clg-l{color:var(--ink-3)}
+/* пункты: маленькая отметка, две колонки, сделанное — серым */
+.ck-l{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 20px;margin:6px 0 0;padding:0;list-style:none}
+.ck{display:flex;align-items:flex-start;gap:9px;margin:0 -6px;padding:4px 6px;border-radius:7px;font-size:14px;line-height:1.4;color:var(--ink);cursor:pointer}
+.ck:hover{background:var(--lane)}
+.ck.is-ro{cursor:default}
+.ck.is-ro:hover{background:none}
+.ck input{appearance:none;-webkit-appearance:none;display:grid;place-items:center;flex:none;width:16px;height:16px;margin:2px 0 0;border:1.5px solid var(--line-2);border-radius:4.5px;background:var(--bg);cursor:inherit;transition:background-color .12s,border-color .12s}
+.ck input:checked{background:var(--ink);border-color:var(--ink)}
+.ck input:checked::after{content:"";width:8px;height:4px;margin-top:-2px;border:solid #fff;border-width:0 0 2px 2px;transform:rotate(-45deg)}
+.ck input:disabled:checked{background:var(--ink-3);border-color:var(--ink-3)}
+.ck input:focus-visible{outline:none;box-shadow:var(--focus)}
+.ck.is-done > span{color:var(--ink-3)}
 
 /* ---------- кандидаты: карточки по этапам ---------- */
 .cands{display:flex;flex-direction:column;gap:18px}
@@ -506,7 +516,7 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
   .wiz-t{display:none}
   .wiz .is-now .wiz-t{display:inline}
   .cc{padding:14px}
-  .clg-l{grid-template-columns:minmax(0,1fr)}
+  .ck-l{grid-template-columns:minmax(0,1fr)}
   .acts-r{margin-left:0}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}

@@ -192,41 +192,53 @@ function Stopped({r}){
   return html`<${Note} title=${title} by=${l.by} at=${l.at} quote=${r.status === 'cancelled' ? r.cancel.comment : l.comment}/>`;
 }
 
-/* ---------- чек-лист: каждый исполнитель отмечает свою часть разом ----------
-   Пункты — памятка, что входит в шаг. Отмечать каждый никто не станет, поэтому одна кнопка «Всё сделано»
-   на исполнителя; у сделанного — кто и когда. Отмечает только сам исполнитель: HRD видит все части
-   и кого ждут, но за другого не отмечает. */
+/* ---------- чек-лист: пункты с отметками, разложенные по исполнителям ----------
+   Каждый пункт отмечается сам (вернули по просьбе пользователя), но список компактный: две колонки,
+   у исполнителя счётчик и «Отметить все». Сделанная часть свёрнута в строку «Сделано, кто, когда».
+   Отмечает только сам исполнитель: HRD видит все части и кого ждут, но за другого не отмечает. */
 const WHO_ORDER = ['recruiter', 'manager', 'mentor'];
-const waitFor = (w, r) => { const id = w === 'recruiter' ? r.recruiter : w === 'manager' ? r.manager : null; return id ? 'Ждём: ' + shortName(id) : 'Ещё не отмечено'; };
+const waitFor = (w, r) => { const id = w === 'recruiter' ? r.recruiter : w === 'manager' ? r.manager : null; return id ? 'Ждём: ' + shortName(id) : ''; };
+function CheckGroup({r, h, list, w, its, can}){
+  const need = its.filter(x => !x.it.opt), left = need.filter(x => !x.it.done).length, done = left === 0;
+  const [open, setOpen] = useState(!done);
+  useEffect(() => { if(done) setOpen(false); }, [done]);
+  const last = done && need.length ? need.map(x => x.it.done).sort((a, b) => b.at - a.at)[0] : null;
+  const tick = (i, on) => Store.dispatch('check', {id:r.id, hid:h.id, list, i, done:on});
+  return html`<div className=${'clg' + (done ? ' is-done' : '')}>
+    <div className="clg-h">
+      <span className="clg-w">${Model.WHO[w]}</span>
+      ${done ? html`<span className="clg-ok"><${Icon} n="ok" s=${15}/>Сделано${last ? ', ' + shortName(last.by) + ', ' + Model.fmtDate(last.at) : ''}</span>`
+        : html`<span className="clg-n num">${need.length - left} из ${need.length}</span>`}
+      <span className="clg-r">
+        ${!done && can && html`<button type="button" className="link-btn" onClick=${() => Store.dispatch('checkGroup', {id:r.id, hid:h.id, list, who:w, done:true})}>Отметить все</button>`}
+        ${!done && !can && html`<span className="muted clg-wait">${waitFor(w, r)}</span>`}
+        ${done && html`<button type="button" className="link-btn" aria-expanded=${open} onClick=${() => setOpen(!open)}>${open ? 'Свернуть' : 'Пункты'}</button>`}
+      </span>
+    </div>
+    ${open && html`<ul className="ck-l">${its.map(({it, i}) => html`<li key=${i}>
+      <label className=${'ck' + (it.done ? ' is-done' : '') + (can ? '' : ' is-ro')} title=${it.done ? shortName(it.done.by) + ', ' + Model.fmtDateTime(it.done.at) : null}>
+        <input type="checkbox" checked=${!!it.done} disabled=${!can} onChange=${e => tick(i, e.target.checked)}/>
+        <span>${it.t}${it.opt ? html` <span className="muted">· при надобности</span>` : ''}</span>
+      </label>
+    </li>`)}</ul>`}
+  </div>`;
+}
 function Checklist({r, h, list, v, who}){
   const items = h.lists[list];
   if(!items) return null;
   const hrd = Model.PEOPLE[v].role === 'hrd';
-  const groups = WHO_ORDER.filter(w => items.some(i => i.who === w)).map(w => ({w, items:items.filter(i => i.who === w)}))
-    .filter(g => hrd || Model.canCheck(g.items[0], r, v));
+  const groups = WHO_ORDER.filter(w => items.some(i => i.who === w))
+    .map(w => ({w, its:items.map((it, i) => ({it, i})).filter(x => x.it.who === w)}))
+    .map(g => Object.assign(g, {can:Model.canCheck(g.its[0].it, r, v)}))
+    .filter(g => hrd || g.can);
   if(!groups.length) return null;
-  const ready = groups.filter(g => g.items.every(i => i.done)).length;
-  const set = (w, done) => Store.dispatch('checkGroup', {id:r.id, hid:h.id, list, who:w, done});
-  const all = ready === groups.length, [open, setOpen] = useState(!all);
+  const all = groups.every(g => g.its.every(x => x.it.done || x.it.opt)), [open, setOpen] = useState(!all);
   useEffect(() => { if(all) setOpen(false); }, [all]);
   const title = Model.LISTS[list].name + (who ? ': ' + who : '');
-  if(all && !open) return html`<section className="box is-fold"><h3 className="box-t"><button className="fold" aria-expanded="false" onClick=${() => setOpen(true)}>
-    <span>${title}</span><span className="fold-s ok">Все отметили</span><span className="fold-i" aria-hidden="true"><${Icon} n="down" s=${16}/></span></button></h3></section>`;
-  return html`<${Box} title=${all ? html`<button className="fold" aria-expanded="true" onClick=${() => setOpen(false)}><span>${title}</span><span className="fold-s ok">Все отметили</span><span className="fold-i" aria-hidden="true"><${Icon} n="down" s=${16}/></span></button>` : title}
-    aside=${!all && groups.length > 1 && html`<span className="box-n num">${ready} из ${groups.length} готово</span>`}>
-    <div className="clg-all">${groups.map(({w, items:its}) => {
-      const done = its.every(i => i.done), can = Model.canCheck(its[0], r, v);
-      const last = done && its.map(i => i.done).sort((a, b) => b.at - a.at)[0];
-      return html`<div key=${w} className=${'clg' + (done ? ' is-done' : '')}>
-        <div className="clg-h">
-          <span className="clg-w">${Model.WHO[w]}</span>
-          ${done ? html`<span className="clg-ok"><${Icon} n="ok" s=${16}/>Сделано, ${shortName(last.by)}, ${Model.fmtDate(last.at)}</span>
-              ${can && html`<button className="link-btn" onClick=${() => set(w, false)}>Вернуть</button>`}`
-            : can ? html`<${Btn} kind="primary" className="btn-sm" onClick=${() => set(w, true)}>Всё сделано<//>` : html`<span className="muted clg-wait">${waitFor(w, r)}</span>`}
-        </div>
-        <ul className="clg-l">${its.map((it, i) => html`<li key=${i}>${it.t}${it.opt ? html` <span className="muted">при надобности</span>` : ''}</li>`)}</ul>
-      </div>`;
-    })}</div>
+  const fold = o => html`<button className="fold" aria-expanded=${o} onClick=${() => setOpen(!o)}><span>${title}</span><span className="fold-s ok">Все отметили</span><span className="fold-i" aria-hidden="true"><${Icon} n="down" s=${16}/></span></button>`;
+  if(all && !open) return html`<section className="box is-fold"><h3 className="box-t">${fold(false)}</h3></section>`;
+  return html`<${Box} title=${all ? fold(true) : title}>
+    <div className="clg-all">${groups.map(g => html`<${CheckGroup} key=${g.w} r=${r} h=${h} list=${list} w=${g.w} its=${g.its} can=${g.can}/>`)}</div>
   <//>`;
 }
 

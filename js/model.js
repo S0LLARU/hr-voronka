@@ -321,10 +321,10 @@ const Model = (function(){
       ctl(c, at, by, 'Согласился, выход ' + fmtDate(p.start) + (p.salary ? ', оклад ' + p.salary : ''));
       log(r, by, at, c.name + ' согласился на оффер, выход ' + fmtDate(p.start), '', 'accepted');
     },
-    /* исполнитель отмечает свою часть списка разом: «Всё сделано» */
+    /* исполнитель отмечает оставшиеся пункты своей части разом: «Отметить все» */
     checkGroup(S, by, at, p){
       const r = find(S, p.id), h = hire(r, p.hid);
-      h.lists[p.list].forEach(it => { if(it.who === p.who) it.done = p.done ? {at, by} : null; });
+      h.lists[p.list].forEach(it => { if(it.who === p.who && (!p.done || !it.done)) it.done = p.done ? {at, by} : null; });
       log(r, by, at, (p.done ? 'Отметил выполненным: ' : 'Вернул в работу: ') + LISTS[p.list].name + ' (' + WHO[p.who] + ') — ' + short(h.name));
     },
     check(S, by, at, p){

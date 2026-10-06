@@ -59,7 +59,8 @@ const OUT=process.argv[2];
   await btn('Оффер отправлен'); await btn('Согласился'); await close();
   console.log('accepted:', await col(T));
   await open(T);
-  { while(await p.locator('.modal .clg button:has-text("Всё сделано")').count()){ await p.locator('.modal .clg button:has-text("Всё сделано")').first().click(); await p.waitForTimeout(150); } }
+  await p.click('.modal .ck >> nth=0'); console.log('one ticked:', await p.textContent('.modal .clg-n'));
+  { while(await p.locator('.modal .clg button:has-text("Отметить все")').count()){ await p.locator('.modal .clg button:has-text("Отметить все")').first().click(); await p.waitForTimeout(150); } }
   await p.screenshot({path:OUT+'/f-prep.png'});
   await btn('Вышел на стажировку'); await close();
   console.log('intern:', await col(T));
@@ -68,7 +69,7 @@ const OUT=process.argv[2];
   await p.click('.modal .seg button:has-text("Нанимаем")'); await p.fill('.modal textarea','Берём.'); await btn('Сохранить решение'); await close();
   console.log('docs:', await col(T));
   await as('Самат'); await open(T);
-  { while(await p.locator('.modal .clg button:has-text("Всё сделано")').count()){ await p.locator('.modal .clg button:has-text("Всё сделано")').first().click(); await p.waitForTimeout(150); } }
+  { while(await p.locator('.modal .clg button:has-text("Отметить все")').count()){ await p.locator('.modal .clg button:has-text("Отметить все")').first().click(); await p.waitForTimeout(150); } }
   await btn('Сотрудник оформлен'); await close();
   await as('Ринат'); await task('Олжас Тулеуов','Учесть в ФОТ');
   await as('Самат'); console.log('recruiter cols:', await p.$$eval('.col-n',e=>e.map(x=>x.textContent).join(', ')));
