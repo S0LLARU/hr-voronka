@@ -94,7 +94,10 @@ a{color:var(--accent)}
 .pills .n{color:var(--ink-3);font-weight:400}
 
 /* ---------- кнопки ---------- */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 15px;border:1px solid transparent;border-radius:var(--r-ctl);font-weight:500;white-space:nowrap;background:none}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 15px;border:1px solid transparent;border-radius:var(--r-ctl);font-weight:500;white-space:nowrap;background:none;
+  transition:background-color .15s,border-color .15s,color .15s,transform .12s cubic-bezier(.3,0,.2,1)}
+/* нажатие: кнопка чуть утапливается */
+.btn:active,.icon-btn:active{transform:scale(.97)}
 a.btn{text-decoration:none;color:inherit}
 a.btn-primary,.btn-primary{background:var(--primary);color:#fff}
 .btn-primary:hover{background:var(--primary-hover)}
@@ -107,7 +110,7 @@ a.btn-primary,.btn-primary{background:var(--primary);color:#fff}
 .btn-ghost:hover{background:var(--hover);color:var(--ink)}
 .btn:disabled{opacity:.45;cursor:default;pointer-events:none}
 .btn-lg{height:40px;padding:0 18px}
-.icon-btn{flex:none;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border:0;border-radius:var(--r-ctl);background:none;color:var(--ink-2)}
+.icon-btn{flex:none;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border:0;border-radius:var(--r-ctl);background:none;color:var(--ink-2);transition:background-color .15s,color .15s,transform .12s cubic-bezier(.3,0,.2,1)}
 .icon-btn:hover{background:var(--hover);color:var(--ink)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 
@@ -275,8 +278,10 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 .rp.is-over{-webkit-mask-image:linear-gradient(90deg,transparent,#000 20px,#000 calc(100% - 20px),transparent);mask-image:linear-gradient(90deg,transparent,#000 20px,#000 calc(100% - 20px),transparent)}
 .rp li{display:flex;align-items:center;gap:7px;flex:1 1 auto;font-size:13.5px;line-height:18px;color:var(--ink-3);white-space:nowrap}
 .rp li:last-child{flex:none}
-.rp li:not(:last-child)::after{content:"";flex:1;min-width:10px;height:1px;margin:0 6px 0 4px;background:var(--line-2)}
-.rp li.is-done:not(:last-child)::after,.rp li.is-skip:not(:last-child)::after{background:var(--green)}
+/* линия до следующего шага: зелёная заливка внутри серой, при прохождении шага заполняется слева направо */
+.rp-ln{position:relative;flex:1;min-width:10px;height:1px;margin:0 6px 0 4px;background:var(--line-2);overflow:hidden}
+.rp-ln i{position:absolute;inset:0;background:var(--green);transform-origin:left center;transform:scaleX(0)}
+.is-done .rp-ln i,.is-skip .rp-ln i{transform:scaleX(1)}
 .rp-d{display:grid;place-items:center;flex:none;width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line-2);background:var(--bg);color:var(--bg)}
 .is-done .rp-d{background:var(--green);border-color:var(--green)}
 .is-now .rp-d{border:5px solid var(--ink)}
@@ -370,7 +375,12 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 .ck.is-ro:hover{background:none}
 .ck input{appearance:none;-webkit-appearance:none;display:grid;place-items:center;flex:none;width:16px;height:16px;margin:2px 0 0;border:1.5px solid var(--line-2);border-radius:4.5px;background:var(--bg);cursor:inherit;transition:background-color .12s,border-color .12s}
 .ck input:checked{background:var(--ink);border-color:var(--ink)}
-.ck input:checked::after{content:"";width:8px;height:4px;margin-top:-2px;border:solid #fff;border-width:0 0 2px 2px;transform:rotate(-45deg)}
+/* галочка вырастает с лёгким перелётом, текст пункта плавно сереет */
+.ck input::after{content:"";width:8px;height:4px;margin-top:-2px;border:solid #fff;border-width:0 0 2px 2px;transform:rotate(-45deg) scale(0);transition:transform .2s cubic-bezier(.3,1.5,.5,1)}
+.ck input:checked::after{transform:rotate(-45deg) scale(1)}
+.ck > span{transition:color .2s}
+.ck:active input{transform:scale(.9)}
+.ck input{transition:background-color .12s,border-color .12s,transform .12s}
 .ck input:disabled:checked{background:var(--ink-3);border-color:var(--ink-3)}
 .ck input:focus-visible{outline:none;box-shadow:var(--focus)}
 .ck.is-done > span{color:var(--ink-3)}

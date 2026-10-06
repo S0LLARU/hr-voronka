@@ -122,9 +122,70 @@ const Anim = {
   },
   reveal(el){
     if(!Anim.on() || !el) return;
-    Motion.animate(el, {opacity:[0,1], transform:['translateY(-4px)','translateX(0px)']}, {type:'spring', visualDuration:.26, bounce:0});
+    Motion.animate(el, {opacity:[0,1], transform:['translateY(-4px)','translateY(0px)']}, {type:'spring', visualDuration:.26, bounce:0});
+  },
+  /* блоки появляются по очереди: короткий подъём, шаг 35 мс, не дольше 8 шагов */
+  stagger(els, y = 8){
+    if(!Anim.on()) return;
+    Array.from(els).forEach((el, i) => {
+      const delay = Math.min(i, 8) * .035;
+      el.style.opacity = '0';
+      Motion.animate(el, {opacity:[0,1], transform:['translateY(' + y + 'px)','translateY(0px)']}, {type:'spring', visualDuration:.36, bounce:0, delay, opacity:{duration:.22, delay}})
+        .then(() => { el.style.transform = ''; el.style.opacity = ''; }, () => { el.style.opacity = ''; });
+    });
+  },
+  /* раскрытие свёрнутого: высота от нуля до своей, содержимое проявляется */
+  expand(el){
+    if(!Anim.on() || !el) return;
+    const h = el.offsetHeight; el.style.overflow = 'hidden';
+    Motion.animate(el, {height:['0px', h + 'px'], opacity:[0,1]}, {type:'spring', visualDuration:.32, bounce:0, opacity:{duration:.2, delay:.04}})
+      .then(() => { el.style.height = ''; el.style.overflow = ''; el.style.opacity = ''; }, () => {});
+  },
+  /* сворачивание: высота уходит в ноль, потом содержимое убирается */
+  collapse(el){
+    if(!Anim.on() || !el) return Promise.resolve();
+    el.style.overflow = 'hidden';
+    return Motion.animate(el, {height:[el.offsetHeight + 'px', '0px'], opacity:[1,0]}, {duration:.2, ease:[.4,0,.2,1]}).then(() => {}, () => {});
+  },
+  /* уход карточки после решения: гаснет и чуть уменьшается, потом остальные подтягиваются */
+  leave(el){
+    if(!Anim.on() || !el) return Promise.resolve();
+    return Motion.animate(el, {opacity:[1,0], transform:['scale(1)','scale(.97)']}, {duration:.18, ease:[.4,0,1,1]}).then(() => {}, () => {});
+  },
+  /* отметка: короткий отклик точкой или галочкой */
+  pop(el, from = .6){
+    if(!Anim.on() || !el) return;
+    Motion.animate(el, {transform:['scale(' + from + ')','scale(1)']}, {type:'spring', visualDuration:.3, bounce:.35});
   }
 };
+
+/* раскрытие с движением: при открытии после первого показа содержимое разворачивается по высоте */
+function useExpand(open){
+  const ref = useRef(null), first = useRef(true);
+  useLayoutEffect(() => { if(first.current){ first.current = false; return; } if(open) Anim.expand(ref.current); }, [open]);
+  return ref;
+}
+
+/* перестановка без скачков: элементы с data-flip едут со старого места на новое, новые проявляются.
+   Места считаются от контейнера, поэтому прокрутка окна их не сбивает */
+function useFlip(ref){
+  const rects = useRef(null);
+  useLayoutEffect(() => {
+    const root = ref.current; if(!root) return;
+    const base = root.getBoundingClientRect(), next = new Map(), was = rects.current;
+    root.querySelectorAll('[data-flip]').forEach(el => {
+      const r = el.getBoundingClientRect(), k = el.dataset.flip, top = r.top - base.top, left = r.left - base.left;
+      next.set(k, {top, left});
+      if(!was || !Anim.on()) return;
+      const o = was.get(k);
+      if(!o){ Motion.animate(el, {opacity:[0,1], transform:['translateY(6px)','translateY(0px)']}, {type:'spring', visualDuration:.34, bounce:0, opacity:{duration:.2}}); return; }
+      const dx = o.left - left, dy = o.top - top;
+      if(Math.abs(dx) > 1 || Math.abs(dy) > 1) Motion.animate(el, {transform:['translate(' + dx + 'px,' + dy + 'px)','translate(0px,0px)']}, {type:'spring', visualDuration:.42, bounce:0})
+        .then(() => { el.style.transform = ''; }, () => {});
+    });
+    rects.current = next;
+  });
+}
 
 /* выбор с обязательным комментарием: «Вернуть на доработку» сначала открывает поле */
 function Decide({actions, extra}){

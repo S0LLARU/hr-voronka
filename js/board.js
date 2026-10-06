@@ -46,7 +46,7 @@ function sortCards(list, v, now){
 
 /* места карточек помнятся между открытиями доски: вернулись из заявки после решения —
    карточка доезжает до новой колонки у вас на глазах */
-const boardMem = {rects:new Map(), ver:null};
+const boardMem = {rects:new Map(), ver:null, v:null};
 function Board({list, v, now, current, onOpen, version}){
   const ref = useRef(null), rects = useRef(boardMem.rects), lastVer = useRef(boardMem.ver);
   /* у рекрутера работа линейная: согласование до него не доходит, в закрытых делать нечего — эти колонки не показываем */
@@ -58,6 +58,12 @@ function Board({list, v, now, current, onOpen, version}){
     return {c, items};
   });
 
+  /* доска открылась или сменился смотрящий — карточки появляются по очереди сверху вниз в каждой колонке */
+  useLayoutEffect(() => {
+    if(boardMem.v === v || !ref.current) return;
+    boardMem.v = v;
+    ref.current.querySelectorAll('.col-list').forEach(l => Anim.stagger(l.children, 10));
+  }, [v]);
   /* карточка, сменившая место после решения, едет на новое место, а не перескакивает */
   useLayoutEffect(() => {
     const els = ref.current ? ref.current.querySelectorAll('[data-card]') : [];

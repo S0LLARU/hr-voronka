@@ -42,17 +42,32 @@ const initials = n => n.split(' ').slice(0, 2).map(x => x[0]).join('');
    С выбранным кандидатом: подготовка к выходу, стажировка, оформление, учёт в ФОТ. */
 const STATE_SR = {done:' — пройдено', now:' — сейчас', next:' — впереди', stop:' — остановлено', skip:' — пропущено'};
 function StepRow({steps}){
-  const ref = useRef(null);
+  const ref = useRef(null), prev = useRef(null);
   useLayoutEffect(() => {
     const ol = ref.current, el = ol && ol.querySelector('.is-now, .is-stop');
     const over = ol && ol.scrollWidth > ol.clientWidth + 1;
     if(ol) ol.classList.toggle('is-over', !!over);
     if(el && over) ol.scrollLeft = Math.max(0, el.offsetLeft - 40);
+    /* шаг пройден у человека на глазах: точка отзывается, линия до следующего шага заполняется, следующий шаг загорается */
+    const was = prev.current; prev.current = new Map(steps.map(x => [x.k, x.state]));
+    if(!was || !ol || !Anim.on()) return;
+    let t = 0;
+    steps.forEach((x, i) => {
+      const li = ol.children[i], old = was.get(x.k);
+      if(!li || old === undefined || old === x.state) return;
+      if(x.state === 'done'){
+        Anim.pop(li.querySelector('.rp-d'));
+        const ln = li.querySelector('.rp-ln i');
+        if(ln) Motion.animate(ln, {transform:['scaleX(0)','scaleX(1)']}, {duration:.45, ease:[.3,0,.2,1], delay:.08});
+        t = .32;
+      } else if(x.state === 'now' || x.state === 'stop') Motion.animate(li.querySelector('.rp-d'), {transform:['scale(.5)','scale(1)']}, {type:'spring', visualDuration:.3, bounce:.35, delay:t});
+    });
   });
   return html`<div className="rp-row">
-    <ol className="rp" ref=${ref} aria-label="Шаги">${steps.map(s => html`<li key=${s.k} className=${'is-' + s.state} title=${s.tip || null}>
+    <ol className="rp" ref=${ref} aria-label="Шаги">${steps.map((s, i) => html`<li key=${s.k} className=${'is-' + s.state} title=${s.tip || null}>
       <span className="rp-d" aria-hidden="true">${s.state === 'done' ? html`<${Icon} n="check" s=${10} w=${3}/>` : s.state === 'stop' ? html`<${Icon} n="x" s=${10} w=${3}/>` : null}</span>
       <span className="rp-l">${s.label}</span><span className="sr">${STATE_SR[s.state]}${s.tip ? ', ' + s.tip : ''}</span>
+      ${i < steps.length - 1 && html`<span className="rp-ln" aria-hidden="true"><i/></span>`}
     </li>`)}</ol>
   </div>`;
 }
@@ -159,8 +174,8 @@ function briefDefault(r){
   return r.candidates.filter(c => c.stage !== 'rejected').length < 2;
 }
 function RequestBox({r, v}){
-  const [open, setOpen] = useState(() => BRIEF_OPEN.has(r.id) ? BRIEF_OPEN.get(r.id) : briefDefault(r));
-  const toggle = () => { const n = !open; setOpen(n); BRIEF_OPEN.set(r.id, n); };
+  const [open, setOpen] = useState(() => BRIEF_OPEN.has(r.id) ? BRIEF_OPEN.get(r.id) : briefDefault(r)), body = useExpand(open);
+  const toggle = () => { const n = !open; BRIEF_OPEN.set(r.id, n); if(n) setOpen(true); else Anim.collapse(body.current).then(() => setOpen(false)); };
   const p = Model.perms(r, v);
   const sum = [p.salary && r.salary, [r.format, r.location].filter(Boolean).join(', '), r.schedule].filter(Boolean).join(' · ');
   return html`<section className=${'box is-fold' + (open ? ' is-open' : '')}>
@@ -168,7 +183,7 @@ function RequestBox({r, v}){
       <span>Заявка</span>${!open && html`<span className="fold-s">${sum}</span>`}
       <span className="fold-i" aria-hidden="true"><${Icon} n="down" s=${16}/></span>
     </button></h3>
-    ${open && html`<div className="fold-b">${briefParts(r, v).map(([k, t, rows]) => html`<div className="sub" key=${k}><h4 className="sub-t">${t}</h4><${Fields} rows=${rows}/></div>`)}</div>`}
+    ${open && html`<div className="fold-b" ref=${body}>${briefParts(r, v).map(([k, t, rows]) => html`<div className="sub" key=${k}><h4 className="sub-t">${t}</h4><${Fields} rows=${rows}/></div>`)}</div>`}
   </section>`;
 }
 
@@ -200,22 +215,27 @@ const WHO_ORDER = ['recruiter', 'manager', 'mentor'];
 const waitFor = (w, r) => { const id = w === 'recruiter' ? r.recruiter : w === 'manager' ? r.manager : null; return id ? 'Ждём: ' + shortName(id) : ''; };
 function CheckGroup({r, h, list, w, its, can}){
   const need = its.filter(x => !x.it.opt), left = need.filter(x => !x.it.done).length, done = left === 0;
-  const [open, setOpen] = useState(!done);
-  useEffect(() => { if(done) setOpen(false); }, [done]);
+  const [open, setOpen] = useState(!done), list_ = useExpand(open), ok = useRef(null), wasDone = useRef(done);
+  /* часть стала сделанной у человека на глазах: строка «Сделано» проявляется, пункты сворачиваются */
+  useEffect(() => {
+    if(done === wasDone.current) return; wasDone.current = done;
+    if(done){ Anim.reveal(ok.current); Anim.collapse(list_.current).then(() => setOpen(false)); } else setOpen(true);
+  }, [done]);
+  const fold = () => open ? Anim.collapse(list_.current).then(() => setOpen(false)) : setOpen(true);
   const last = done && need.length ? need.map(x => x.it.done).sort((a, b) => b.at - a.at)[0] : null;
   const tick = (i, on) => Store.dispatch('check', {id:r.id, hid:h.id, list, i, done:on});
   return html`<div className=${'clg' + (done ? ' is-done' : '')}>
     <div className="clg-h">
       <span className="clg-w">${Model.WHO[w]}</span>
-      ${done ? html`<span className="clg-ok"><${Icon} n="ok" s=${15}/>Сделано${last ? ', ' + shortName(last.by) + ', ' + Model.fmtDate(last.at) : ''}</span>`
+      ${done ? html`<span className="clg-ok" ref=${ok}><${Icon} n="ok" s=${15}/>Сделано${last ? ', ' + shortName(last.by) + ', ' + Model.fmtDate(last.at) : ''}</span>`
         : html`<span className="clg-n num">${need.length - left} из ${need.length}</span>`}
       <span className="clg-r">
         ${!done && can && html`<button type="button" className="link-btn" onClick=${() => Store.dispatch('checkGroup', {id:r.id, hid:h.id, list, who:w, done:true})}>Отметить все</button>`}
         ${!done && !can && html`<span className="muted clg-wait">${waitFor(w, r)}</span>`}
-        ${done && html`<button type="button" className="link-btn" aria-expanded=${open} onClick=${() => setOpen(!open)}>${open ? 'Свернуть' : 'Пункты'}</button>`}
+        ${done && html`<button type="button" className="link-btn" aria-expanded=${open} onClick=${fold}>${open ? 'Свернуть' : 'Пункты'}</button>`}
       </span>
     </div>
-    ${open && html`<ul className="ck-l">${its.map(({it, i}) => html`<li key=${i}>
+    ${open && html`<ul className="ck-l" ref=${list_}>${its.map(({it, i}) => html`<li key=${i}>
       <label className=${'ck' + (it.done ? ' is-done' : '') + (can ? '' : ' is-ro')} title=${it.done ? shortName(it.done.by) + ', ' + Model.fmtDateTime(it.done.at) : null}>
         <input type="checkbox" checked=${!!it.done} disabled=${!can} onChange=${e => tick(i, e.target.checked)}/>
         <span>${it.t}${it.opt ? html` <span className="muted">· при надобности</span>` : ''}</span>
@@ -233,7 +253,8 @@ function Checklist({r, h, list, v, who}){
     .filter(g => hrd || g.can);
   if(!groups.length) return null;
   const all = groups.every(g => g.its.every(x => x.it.done || x.it.opt)), [open, setOpen] = useState(!all);
-  useEffect(() => { if(all) setOpen(false); }, [all]);
+  /* весь список отмечен — сначала сворачивается последняя часть, потом блок становится строкой «Все отметили» */
+  useEffect(() => { if(!all) return; const t = setTimeout(() => setOpen(false), Anim.on() ? 600 : 0); return () => clearTimeout(t); }, [all]);
   const title = Model.LISTS[list].name + (who ? ': ' + who : '');
   const fold = o => html`<button className="fold" aria-expanded=${o} onClick=${() => setOpen(!o)}><span>${title}</span><span className="fold-s ok">Все отметили</span><span className="fold-i" aria-hidden="true"><${Icon} n="down" s=${16}/></span></button>`;
   if(all && !open) return html`<section className="box is-fold"><h3 className="box-t">${fold(false)}</h3></section>`;
@@ -402,7 +423,7 @@ function CandCard({r, c, v, now}){
   ].filter(Boolean);
   const fb = c.feedback[c.feedback.length - 1];
   const when = c.stage === 'accepted' && h ? (h.stage === 'prep' ? 'выход ' + Model.fmtDate(h.start) : '') : 'на этапе с ' + Model.fmtDate(c.stageAt);
-  return html`<article className="cc">
+  return html`<article className="cc" data-flip=${c.id}>
     <div className="cc-h">
       <span className="cc-a" aria-hidden="true">${initials(c.name)}</span>
       <div className="cc-t">
@@ -419,22 +440,23 @@ function CandCard({r, c, v, now}){
 }
 function Candidates({r, v, now, canAdd, guard}){
   const manager = r.manager === v, [showRej, setShowRej] = useState(false), [adding, setAdding] = useState(false);
+  const ref = useRef(null), rejRef = useExpand(showRej); useFlip(ref);
   const live = r.candidates.filter(c => c.stage !== 'rejected'), rej = r.candidates.filter(c => c.stage === 'rejected');
   const groups = C_GROUPS.map(([k, t]) => [k, k === 'mgr' && manager ? 'Ждут вашего ответа' : t, live.filter(c => c.stage === k || (k === 'hr' && (c.stage === 'new' || c.stage === 'test'))).sort((a, b) => b.stageAt - a.stageAt)]).filter(g => g[2].length);
-  return html`<section className="cands">
+  return html`<section className="cands" ref=${ref}>
     <div className="cands-h"><h3 className="box-t">Кандидаты <span className="muted num">${live.length}</span></h3>
       ${r.seats > 1 && html`<span className="muted cands-left">Нужно ещё ${r.seats - Model.activeHires(r).length} из ${r.seats}</span>`}
       ${canAdd && !adding && html`<${Btn} onClick=${() => setAdding(true)}><${Icon} n="plus" s=${15}/>Добавить кандидата<//>`}</div>
     ${adding && html`<${AddCandidate} r=${r} guard=${guard} onCancel=${() => { guard.current = false; setAdding(false); }} onDone=${() => { guard.current = false; setAdding(false); }}/>`}
     ${!live.length && !adding && html`<p className="muted" style=${{margin:0}}>Кандидатов пока нет</p>`}
     ${groups.map(([k, t, list]) => html`<div className="cg" key=${k}>
-      <h4 className=${'cg-t' + (k === 'mgr' && manager ? ' is-mine' : '')}>${t} <span className="num">${list.length}</span></h4>
+      <h4 data-flip=${'g' + k} className=${'cg-t' + (k === 'mgr' && manager ? ' is-mine' : '')}>${t} <span className="num">${list.length}</span></h4>
       ${list.map(c => html`<${CandCard} key=${c.id} r=${r} c=${c} v=${v} now=${now}/>`)}
     </div>`)}
     ${rej.length > 0 && html`<div className="cg">
-      <h4 className="cg-t"><button className="fold" aria-expanded=${showRej} onClick=${() => setShowRej(!showRej)}>Отказы <span className="num">${rej.length}</span>
+      <h4 className="cg-t" data-flip="rej"><button className="fold" aria-expanded=${showRej} onClick=${() => setShowRej(!showRej)}>Отказы <span className="num">${rej.length}</span>
         <span className="fold-i" aria-hidden="true"><${Icon} n="down" s=${14}/></span></button></h4>
-      ${showRej && html`<div className="crej">${rej.map(c => html`<a key=${c.id} className="crej-r" href=${'#/r/' + r.id + '/c/' + c.id}>
+      ${showRej && html`<div className="crej" ref=${rejRef}>${rej.map(c => html`<a key=${c.id} className="crej-r" href=${'#/r/' + r.id + '/c/' + c.id}>
         <span className="crej-n">${c.name}</span><span className="muted">${c.reject.reason}</span><span className="muted num">${Model.fmtDate(c.reject.at)}</span></a>`)}</div>`}
     </div>`}
   </section>`;
@@ -455,12 +477,17 @@ function logKind(l){
   return 'ev';
 }
 function Timeline({items, limit = 6}){
-  const [all, setAll] = useState(false);
+  const [all, setAll] = useState(false), ol = useRef(null), count = useRef(items.length);
+  /* новое событие, пока окно открыто, проявляется внизу истории */
+  useLayoutEffect(() => {
+    const n = items.length, was = count.current; count.current = n;
+    if(n > was && ol.current) Anim.stagger(Array.from(ol.current.children).slice(-(n - was)), 6);
+  }, [items.length]);
   items = items.slice().sort((a, b) => a.at - b.at);
   const hidden = !all && items.length > limit ? items.length - limit : 0;
   return html`<div>
     ${hidden > 0 && html`<button className="tl-more" onClick=${() => setAll(true)}><${Icon} n="down" s=${14}/>Ещё ${hidden} ${Model.plural(hidden, 'событие', 'события', 'событий')}</button>`}
-    <ol className="tl">${items.slice(hidden).map((x, i) => html`<li key=${i}>
+    <ol className="tl" ref=${ol}>${items.slice(hidden).map((x, i) => html`<li key=${i}>
       <span className=${'tl-i is-' + x.kind}><${Icon} n=${TL_ICON[x.kind]} s=${18}/></span>
       <div className="tl-b">
         <div className="tl-top"><span className="tl-t">${x.title}</span><time className="tl-d num">${Model.fmtDateTime(x.at)}</time></div>
@@ -513,6 +540,9 @@ function RequestPage({r, view, cid, startReview}){
   const leave = then => { if(guard.current){ setAsk(() => then); return; } then(); };
   useEffect(() => { Panel.leave = leave; });
   useEffect(() => () => { Panel.leave = f => f(); }, []);
+  /* решение сменило шаг заявки — новое дело появляется блоками, а не возникает разом */
+  const mm = useRef(null), stWas = useRef(r.status);
+  useLayoutEffect(() => { if(stWas.current === r.status) return; stWas.current = r.status; if(mm.current) Anim.stagger(mm.current.children, 8); }, [r.status]);
 
   if(view === 'cand' || view === 'add'){
     const c = r.candidates.find(x => x.id === cid);
@@ -600,7 +630,7 @@ function RequestPage({r, view, cid, startReview}){
 
   return html`<div className="mgrid">
     <${ModalHead} title=${html`${r.title}${r.seats > 1 && html`<small className="num">× ${r.seats}</small>`}`} sub=${r.dept + ' / ' + r.project} strip=${html`<${Strip} steps=${stripSteps(r)}/>`}/>
-    <div className="mmain">${main}</div>
+    <div className="mmain" ref=${mm}>${main}</div>
     <${Side} info=${info} history=${log}/>
     ${ask && html`<${ModalFoot}><div className="row is-end guard-row" role="alert"><span>Есть несохранённые изменения. Выйти без сохранения?</span>
       <${Btn} kind="ghost" onClick=${() => setAsk(null)}>Остаться<//><${Btn} kind="danger" onClick=${() => { const f = ask; setAsk(null); guard.current = false; f(); }}>Выйти<//></div><//>`}

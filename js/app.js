@@ -112,8 +112,14 @@ function App(){
       Anim.modalOut(modal.current, scrim.current).then(() => setShown(null));
     }
   }, [hash, !!req]);
+  /* содержимое окна появляется блоками по очереди: слева дело, справа история и сведения */
+  const enter = page => {
+    const b = body.current; if(!b) return;
+    const bl = b.querySelectorAll('.mmain > *, .mside > *, .cside > *, .cgrid > .doc');
+    if(bl.length) Anim.stagger(bl, page ? 10 : 8); else if(page) Anim.page(b.firstElementChild);
+  };
   useLayoutEffect(() => {
-    if(shown && !wasShown.current) Anim.modalIn(modal.current, scrim.current);
+    if(shown && !wasShown.current){ Anim.modalIn(modal.current, scrim.current); enter(); }
     wasShown.current = !!shown;
     if(main.current){ if(shown) main.current.setAttribute('inert', ''); else main.current.removeAttribute('inert'); }
     /* окно закрыто — фокус на карточке заявки, которая была открыта */
@@ -135,7 +141,7 @@ function App(){
   useLayoutEffect(() => {
     if(!shown || !body.current) return;
     body.current.scrollTop = 0;
-    if(prevKey.current && prevKey.current !== key) Anim.page(body.current.firstElementChild);
+    if(prevKey.current && prevKey.current !== key) enter(true);
     prevKey.current = key;
     const f = modal.current && modal.current.querySelector('[data-autofocus]'); if(f) f.focus({preventScroll:true});
   }, [key, slot]);
