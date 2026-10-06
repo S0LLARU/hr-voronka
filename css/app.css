@@ -30,6 +30,9 @@ button{cursor:pointer}
 a{color:var(--accent)}
 :focus-visible{outline:none;box-shadow:var(--focus)}
 .num{font-variant-numeric:tabular-nums}
+/* полосы прокрутки скрыты (решение пользователя), прокрутка работает; что под краем есть ещё — видно по черте у шапки и низа окна */
+.menu,.content,.board,.pop-list,.m-body,.doc-pane,.side{scrollbar-width:none}
+.menu::-webkit-scrollbar,.content::-webkit-scrollbar,.board::-webkit-scrollbar,.pop-list::-webkit-scrollbar,.m-body::-webkit-scrollbar,.doc-pane::-webkit-scrollbar,.side::-webkit-scrollbar{display:none}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .grow{flex:1;min-width:0}
 
