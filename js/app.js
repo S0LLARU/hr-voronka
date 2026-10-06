@@ -82,7 +82,7 @@ function BoardPage({S, v, now, focusId, q}){
   return html`<div className="board-page">
     <h1 className="sr">Заявки на подбор</h1>
     ${ql && !list.length ? html`<p className="empty-line">По запросу «${q.trim()}» заявок нет</p>` : null}
-    <${Board} list=${list} v=${v} now=${now} current=${focusId} onOpen=${id => go('#/r/' + id)} version=${Store.version()}/>
+    <${Board} list=${list} v=${v} now=${now} current=${focusId} onOpen=${id => go('#/r/' + id)} version=${Store.version()} q=${q}/>
   </div>`;
 }
 
@@ -91,6 +91,13 @@ function App(){
   const me = Model.PEOPLE[v];
   const [side, setSide] = useState(() => { try { return localStorage.getItem('hr-side') !== '0'; } catch(e) { return true; } });
   const [drawer, setDrawer] = useState(false), [q, setQ] = useState('');
+  /* меню на телефоне выезжает слева, подложка проявляется */
+  useLayoutEffect(() => {
+    if(!drawer || !Anim.on()) return;
+    const sd = document.querySelector('.app.is-drawer .side'), sc = document.querySelector('.app.is-drawer > div > .scrim');
+    if(sd) Anim.done(Motion.animate(sd, {transform:['translateX(-100%)','translateX(0px)']}, {duration:.45, ease:EASE}), sd);
+    if(sc) Motion.animate(sc, {opacity:[0,1]}, {duration:.3});
+  }, [drawer]);
   const narrow = () => matchMedia('(max-width:900px)').matches;
   const toggleSide = () => {
     if(narrow()){ setDrawer(!drawer); return; }
@@ -112,11 +119,26 @@ function App(){
       Anim.modalOut(modal.current, scrim.current).then(() => setShown(null));
     }
   }, [hash, !!req]);
+  /* окно меняет высоту плавно: сменился шаг формы, появилось новое дело — низ окна доезжает, а не прыгает.
+     Мелкие изменения (раскрытие блока анимируется само) и смену размера экрана не трогаем */
+  useEffect(() => {
+    const m = modal.current; if(!m || !Anim.on()) return;
+    let h = m.offsetHeight, vh = innerHeight, busy = false;
+    const ro = new ResizeObserver(() => {
+      if(busy) return;
+      const n = m.offsetHeight;
+      if(Math.abs(n - h) < 40 || innerHeight !== vh){ h = n; vh = innerHeight; return; }
+      const from = h; h = n; busy = true;
+      Motion.animate(m, {height:[from + 'px', n + 'px']}, {duration:.45, ease:EASE})
+        .then(() => { m.style.height = ''; busy = false; h = m.offsetHeight; }, () => { m.style.height = ''; busy = false; });
+    });
+    ro.observe(m); return () => ro.disconnect();
+  }, [!!shown]);
   /* содержимое окна появляется блоками по очереди: слева дело, справа история и сведения */
   const enter = page => {
     const b = body.current; if(!b) return;
     const bl = b.querySelectorAll('.mmain > *, .mside > *, .cside > *, .cgrid > .doc');
-    if(bl.length) Anim.stagger(bl, page ? 10 : 8); else if(page) Anim.page(b.firstElementChild);
+    if(bl.length) Anim.stagger(bl, 14, page ? 0 : .08); else if(page) Anim.page(b.firstElementChild);
   };
   useLayoutEffect(() => {
     if(shown && !wasShown.current){ Anim.modalIn(modal.current, scrim.current); enter(); }

@@ -58,9 +58,9 @@ function StepRow({steps}){
       if(x.state === 'done'){
         Anim.pop(li.querySelector('.rp-d'));
         const ln = li.querySelector('.rp-ln i');
-        if(ln) Motion.animate(ln, {transform:['scaleX(0)','scaleX(1)']}, {duration:.45, ease:[.3,0,.2,1], delay:.08});
-        t = .32;
-      } else if(x.state === 'now' || x.state === 'stop') Motion.animate(li.querySelector('.rp-d'), {transform:['scale(.5)','scale(1)']}, {type:'spring', visualDuration:.3, bounce:.35, delay:t});
+        if(ln) Motion.animate(ln, {transform:['scaleX(0)','scaleX(1)']}, {duration:.7, ease:[.65,0,.35,1], delay:.12});
+        t = .6;
+      } else if(x.state === 'now' || x.state === 'stop') Anim.pop(li.querySelector('.rp-d'), .4, t);
     });
   });
   return html`<div className="rp-row">
@@ -254,7 +254,7 @@ function Checklist({r, h, list, v, who}){
   if(!groups.length) return null;
   const all = groups.every(g => g.its.every(x => x.it.done || x.it.opt)), [open, setOpen] = useState(!all);
   /* весь список отмечен — сначала сворачивается последняя часть, потом блок становится строкой «Все отметили» */
-  useEffect(() => { if(!all) return; const t = setTimeout(() => setOpen(false), Anim.on() ? 600 : 0); return () => clearTimeout(t); }, [all]);
+  useEffect(() => { if(!all) return; const t = setTimeout(() => setOpen(false), Anim.on() ? 800 : 0); return () => clearTimeout(t); }, [all]);
   const title = Model.LISTS[list].name + (who ? ': ' + who : '');
   const fold = o => html`<button className="fold" aria-expanded=${o} onClick=${() => setOpen(!o)}><span>${title}</span><span className="fold-s ok">Все отметили</span><span className="fold-i" aria-hidden="true"><${Icon} n="down" s=${16}/></span></button>`;
   if(all && !open) return html`<section className="box is-fold"><h3 className="box-t">${fold(false)}</h3></section>`;
@@ -372,13 +372,15 @@ function CandActions({r, c, v, now, small}){
   /* в заявке вилка — точный оклад спрашиваем, когда кандидат согласился: его получит Finance */
   const range = Model.isRange(r.salary);
   useEffect(() => { setRej(false); setErr(''); }, [c.stage]);
+  const rejBox = useRef(null);
+  useEffect(() => { if(rej) Anim.reveal(rejBox.current); }, [rej]);
   const editor = p.editCandidates, manager = r.manager === v, open = c.stage !== 'rejected' && c.stage !== 'accepted';
   const doReject = () => {
     if(!reason){ setErr('Выберите причину'); return; }
     if(reason === 'Другое' && !rc.trim()){ setErr('Напишите причину'); return; }
     d('reject', {reason, comment:rc.trim()}); setRej(false);
   };
-  if(rej) return html`<div className="decide">
+  if(rej) return html`<div className="decide" ref=${rejBox}>
     <p className="note-m" style=${{margin:'0 0 10px'}}>Кандидат уйдёт в отказы, руководитель увидит причину. Вернуть кандидата нельзя.</p>
     <div className="grid-dc">
       <${Field} label="Причина отказа" error=${err && !reason ? err : ''}><${Select} value=${reason} onChange=${x => { setReason(x); setErr(''); }} options=${Model.REJECT}/><//>
@@ -477,14 +479,17 @@ function logKind(l){
   return 'ev';
 }
 function Timeline({items, limit = 6}){
-  const [all, setAll] = useState(false), ol = useRef(null), count = useRef(items.length);
+  const [all, setAll] = useState(false), ol = useRef(null), count = useRef(items.length), shown = useRef(0);
   /* новое событие, пока окно открыто, проявляется внизу истории */
   useLayoutEffect(() => {
     const n = items.length, was = count.current; count.current = n;
-    if(n > was && ol.current) Anim.stagger(Array.from(ol.current.children).slice(-(n - was)), 6);
+    if(n > was && ol.current) Anim.stagger(Array.from(ol.current.children).slice(-(n - was)), 8);
   }, [items.length]);
+  /* «Ещё N событий» — ранние события проявляются сверху по очереди */
+  useLayoutEffect(() => { if(all && shown.current && ol.current) Anim.stagger(Array.from(ol.current.children).slice(0, shown.current).reverse(), -8); }, [all]);
   items = items.slice().sort((a, b) => a.at - b.at);
   const hidden = !all && items.length > limit ? items.length - limit : 0;
+  if(hidden) shown.current = hidden;
   return html`<div>
     ${hidden > 0 && html`<button className="tl-more" onClick=${() => setAll(true)}><${Icon} n="down" s=${14}/>Ещё ${hidden} ${Model.plural(hidden, 'событие', 'события', 'событий')}</button>`}
     <ol className="tl" ref=${ol}>${items.slice(hidden).map((x, i) => html`<li key=${i}>
@@ -541,8 +546,13 @@ function RequestPage({r, view, cid, startReview}){
   useEffect(() => { Panel.leave = leave; });
   useEffect(() => () => { Panel.leave = f => f(); }, []);
   /* решение сменило шаг заявки — новое дело появляется блоками, а не возникает разом */
-  const mm = useRef(null), stWas = useRef(r.status);
-  useLayoutEffect(() => { if(stWas.current === r.status) return; stWas.current = r.status; if(mm.current) Anim.stagger(mm.current.children, 8); }, [r.status]);
+  /* появляются только новые блоки: то, что было и осталось, не мигает */
+  const mm = useRef(null), stWas = useRef(r.status), seen = useRef(new WeakSet());
+  useLayoutEffect(() => {
+    const kids = mm.current ? Array.from(mm.current.children) : [];
+    if(stWas.current !== r.status){ stWas.current = r.status; Anim.stagger(kids.filter(el => !seen.current.has(el)), 12, .05); }
+    kids.forEach(el => seen.current.add(el));
+  });
 
   if(view === 'cand' || view === 'add'){
     const c = r.candidates.find(x => x.id === cid);
@@ -681,7 +691,9 @@ function Paper({c, r}){
 function DocPane({r, c, can}){
   const docs = [{k:'cv', name:'Резюме'}].concat(c.files.map((f, i) => ({k:'f' + i, name:f.kind === 'Резюме' ? 'Резюме, файл' : f.kind, f})));
   const [tab, setTab] = useState('cv'), [kind, setKind] = useState('Портфолио'), [, force] = useState(0), inp = useRef(null);
-  const doc = docs.find(x => x.k === tab) || docs[0], url = doc.f && FILE_URLS.get(fileKey(c, doc.f));
+  const doc = docs.find(x => x.k === tab) || docs[0], url = doc.f && FILE_URLS.get(fileKey(c, doc.f)), pane = useRef(null), first = useRef(true);
+  /* другая вкладка — лист меняется плавно */
+  useLayoutEffect(() => { if(first.current){ first.current = false; return; } if(pane.current){ pane.current.scrollTop = 0; Anim.page(pane.current.firstElementChild); } }, [tab]);
   const add = e => {
     const fs = Array.from(e.target.files); e.target.value = '';
     if(!fs.length) return;
@@ -701,7 +713,7 @@ function DocPane({r, c, can}){
           <input ref=${inp} type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange=${add}/>`}
       </div>
     </div>
-    <div className="doc-pane">
+    <div className="doc-pane" ref=${pane}>
       ${doc.k === 'cv' ? html`<${Paper} c=${c} r=${r}/>`
         : url && /pdf/.test(url.type) ? html`<iframe className="doc-frame" src=${url.url} title=${doc.f.name}></iframe>`
         : url && /^image\//.test(url.type) ? html`<img className="doc-img" src=${url.url} alt=${doc.f.name}/>`

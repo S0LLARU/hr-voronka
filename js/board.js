@@ -47,7 +47,7 @@ function sortCards(list, v, now){
 /* места карточек помнятся между открытиями доски: вернулись из заявки после решения —
    карточка доезжает до новой колонки у вас на глазах */
 const boardMem = {rects:new Map(), ver:null, v:null};
-function Board({list, v, now, current, onOpen, version}){
+function Board({list, v, now, current, onOpen, version, q}){
   const ref = useRef(null), rects = useRef(boardMem.rects), lastVer = useRef(boardMem.ver);
   /* у рекрутера работа линейная: согласование до него не доходит, в закрытых делать нечего — эти колонки не показываем */
   const role = Model.PEOPLE[v].role;
@@ -62,22 +62,26 @@ function Board({list, v, now, current, onOpen, version}){
   useLayoutEffect(() => {
     if(boardMem.v === v || !ref.current) return;
     boardMem.v = v;
-    ref.current.querySelectorAll('.col-list').forEach(l => Anim.stagger(l.children, 10));
+    /* волна слева направо: каждая колонка начинает чуть позже соседней */
+    ref.current.querySelectorAll('.col-list').forEach((l, i) => Anim.stagger(l.children, 14, i * .06));
   }, [v]);
-  /* карточка, сменившая место после решения, едет на новое место, а не перескакивает */
+  /* карточка, сменившая место после решения, едет на новое место, а не перескакивает. При поиске оставшиеся
+     карточки подтягиваются, вернувшиеся проявляются */
+  const lastQ = useRef(q);
   useLayoutEffect(() => {
     const els = ref.current ? ref.current.querySelectorAll('[data-card]') : [];
-    const moved = lastVer.current !== null && lastVer.current !== version && Store.kind() === 'act'; lastVer.current = boardMem.ver = version;
+    const searched = lastQ.current !== q; lastQ.current = q;
+    const moved = searched || (lastVer.current !== null && lastVer.current !== version && Store.kind() === 'act'); lastVer.current = boardMem.ver = version;
     const next = new Map();
     els.forEach(el => {
       const r = el.getBoundingClientRect(), id = el.dataset.card, was = rects.current.get(id);
       next.set(id, r);
       if(!moved || !Anim.on()) return;
-      if(!was){ Motion.animate(el, {opacity:[0,1], transform:['scale(.97)','scale(1)']}, {type:'spring', visualDuration:.3, bounce:0}); return; }
+      if(!was){ Anim.done(Motion.animate(el, {opacity:[0,1], transform:['translateY(8px) scale(.98)','translateY(0px) scale(1)']}, {duration:.5, ease:EASE, opacity:{duration:.35}}), el); return; }
       const dx = was.left - r.left, dy = was.top - r.top;
       if(Math.abs(dx) > 1 || Math.abs(dy) > 1){
         el.style.position = 'relative'; el.style.zIndex = Math.abs(dx) > 1 ? '5' : '';
-        Motion.animate(el, {transform:['translate(' + dx + 'px,' + dy + 'px)', 'translate(0,0)']}, {type:'spring', visualDuration:Math.abs(dx) > 1 ? .55 : .34, bounce:0})
+        Motion.animate(el, {transform:['translate(' + dx + 'px,' + dy + 'px)', 'translate(0px,0px)']}, {duration:Math.abs(dx) > 1 ? .75 : .5, ease:EASE})
           .then(() => { el.style.transform = ''; el.style.position = ''; el.style.zIndex = ''; }, () => {});
       }
     });

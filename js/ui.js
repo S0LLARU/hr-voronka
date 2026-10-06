@@ -85,7 +85,7 @@ function useMenu(){
     const key = e => { if(e.key === 'Escape'){ e.stopPropagation(); setOpen(false); btn.current && btn.current.focus(); } };
     document.addEventListener('pointerdown', down); document.addEventListener('keydown', key, true);
     requestAnimationFrame(() => { const f = box.current && box.current.querySelector('[role^=menuitem]'); if(f) f.focus(); });
-    if(box.current && Motion.animate && !Anim.reduced()) Motion.animate(box.current, {opacity:[0,1], transform:['translateY(-4px) scale(.98)','translateY(0px) scale(1)']}, {type:'spring', visualDuration:.22, bounce:0});
+    if(box.current && Motion.animate && !Anim.reduced()) Motion.animate(box.current, {opacity:[0,1], transform:['translateY(-6px) scale(.97)','translateY(0px) scale(1)']}, {duration:.32, ease:EASE, opacity:{duration:.2}});
     return () => { document.removeEventListener('pointerdown', down); document.removeEventListener('keydown', key, true); };
   }, [open]);
   const onMenuKey = e => {
@@ -98,64 +98,72 @@ function useMenu(){
 }
 
 /* ---------- движение (Motion): пружина без отскока, уход быстрее прихода ---------- */
+/* Движение мягкое: быстрое начало и долгое плавное замедление (как ease-out-quint), 0,35–0,6 с.
+   Пружины — только там, где нужен отклик на касание (галочка, точка шага). */
+const EASE = [.22, 1, .36, 1], EASE_IN = [.4, 0, .6, 1];
 const Anim = {
   reduced: () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches),
   on: () => !!(window.Motion && Motion.animate) && !Anim.reduced(),
+  done: (a, el, keep) => a.then(() => { if(el && !keep){ el.style.transform = ''; el.style.opacity = ''; } }, () => {}),
   modalIn(el, scrim){
     if(!Anim.on() || !el) return;
-    Motion.animate(el, {transform:['translateY(12px) scale(.985)','translateY(0px) scale(1)'], opacity:[0,1]}, {type:'spring', visualDuration:.32, bounce:0, opacity:{duration:.14}});
-    if(scrim) Motion.animate(scrim, {opacity:[0,1]}, {duration:.2, ease:'easeOut'});
+    Motion.animate(el, {transform:['translateY(24px) scale(.97)','translateY(0px) scale(1)'], opacity:[0,1]}, {duration:.55, ease:EASE, opacity:{duration:.3, ease:'easeOut'}});
+    if(scrim) Motion.animate(scrim, {opacity:[0,1]}, {duration:.4, ease:'easeOut'});
   },
   modalOut(el, scrim){
     if(!Anim.on() || !el) return Promise.resolve();
-    if(scrim) Motion.animate(scrim, {opacity:[1,0]}, {duration:.16});
-    return Motion.animate(el, {transform:['translateY(0px) scale(1)','translateY(8px) scale(.985)'], opacity:[1,0]}, {duration:.14, ease:[.4,0,1,1]}).then(() => {}, () => {});
+    if(scrim) Motion.animate(scrim, {opacity:[1,0]}, {duration:.28, ease:EASE_IN});
+    return Motion.animate(el, {transform:['translateY(0px) scale(1)','translateY(12px) scale(.98)'], opacity:[1,0]}, {duration:.24, ease:EASE_IN}).then(() => {}, () => {});
   },
   page(el){
     if(!Anim.on() || !el) return;
-    Motion.animate(el, {opacity:[0,1], transform:['translateY(6px)','translateY(0px)']}, {type:'spring', visualDuration:.28, bounce:0, opacity:{duration:.14}})
-      .then(() => { el.style.transform = ''; }, () => {});
+    Anim.done(Motion.animate(el, {opacity:[0,1], transform:['translateY(10px)','translateY(0px)']}, {duration:.5, ease:EASE, opacity:{duration:.35}}), el);
   },
+  /* шаг вперёд — содержимое приезжает справа, назад — слева */
   push(el, dir){
     if(!Anim.on() || !el) return;
-    Motion.animate(el, {transform:['translateX(' + (dir === 'back' ? -24 : 24) + 'px)','translateX(0px)'], opacity:[0,1]}, {type:'spring', visualDuration:.32, bounce:0, opacity:{duration:.1}});
+    Anim.done(Motion.animate(el, {transform:['translateX(' + (dir === 'back' ? -28 : 28) + 'px)','translateX(0px)'], opacity:[0,1]}, {duration:.5, ease:EASE, opacity:{duration:.3}}), el);
   },
   reveal(el){
     if(!Anim.on() || !el) return;
-    Motion.animate(el, {opacity:[0,1], transform:['translateY(-4px)','translateY(0px)']}, {type:'spring', visualDuration:.26, bounce:0});
+    Anim.done(Motion.animate(el, {opacity:[0,1], transform:['translateY(-6px)','translateY(0px)']}, {duration:.45, ease:EASE, opacity:{duration:.3}}), el);
   },
-  /* блоки появляются по очереди: короткий подъём, шаг 35 мс, не дольше 8 шагов */
-  stagger(els, y = 8){
+  /* блоки появляются по очереди: подъём на 12 px, шаг 50 мс, не дольше 10 шагов */
+  stagger(els, y = 12, base = 0){
     if(!Anim.on()) return;
     Array.from(els).forEach((el, i) => {
-      const delay = Math.min(i, 8) * .035;
+      const delay = base + Math.min(i, 10) * .05;
       el.style.opacity = '0';
-      Motion.animate(el, {opacity:[0,1], transform:['translateY(' + y + 'px)','translateY(0px)']}, {type:'spring', visualDuration:.36, bounce:0, delay, opacity:{duration:.22, delay}})
-        .then(() => { el.style.transform = ''; el.style.opacity = ''; }, () => { el.style.opacity = ''; });
+      Anim.done(Motion.animate(el, {opacity:[0,1], transform:['translateY(' + y + 'px)','translateY(0px)']}, {duration:.6, ease:EASE, delay, opacity:{duration:.4, delay, ease:'easeOut'}}), el);
     });
   },
-  /* раскрытие свёрнутого: высота от нуля до своей, содержимое проявляется */
+  /* раскрытие свёрнутого: высота от нуля до своей, содержимое проявляется чуть позже */
   expand(el){
     if(!Anim.on() || !el) return;
     const h = el.offsetHeight; el.style.overflow = 'hidden';
-    Motion.animate(el, {height:['0px', h + 'px'], opacity:[0,1]}, {type:'spring', visualDuration:.32, bounce:0, opacity:{duration:.2, delay:.04}})
+    Motion.animate(el, {height:['0px', h + 'px'], opacity:[0,1]}, {duration:.45, ease:EASE, opacity:{duration:.35, delay:.08}})
       .then(() => { el.style.height = ''; el.style.overflow = ''; el.style.opacity = ''; }, () => {});
   },
-  /* сворачивание: высота уходит в ноль, потом содержимое убирается */
+  /* сворачивание: содержимое гаснет, высота уходит в ноль, потом его убирают */
   collapse(el){
     if(!Anim.on() || !el) return Promise.resolve();
     el.style.overflow = 'hidden';
-    return Motion.animate(el, {height:[el.offsetHeight + 'px', '0px'], opacity:[1,0]}, {duration:.2, ease:[.4,0,.2,1]}).then(() => {}, () => {});
+    return Motion.animate(el, {height:[el.offsetHeight + 'px', '0px'], opacity:[1,0]}, {duration:.34, ease:[.4,0,.2,1], opacity:{duration:.2}}).then(() => {}, () => {});
   },
-  /* уход карточки после решения: гаснет и чуть уменьшается, потом остальные подтягиваются */
+  /* уход карточки после решения: гаснет, чуть уменьшается и приподнимается, потом остальные подтягиваются */
   leave(el){
     if(!Anim.on() || !el) return Promise.resolve();
-    return Motion.animate(el, {opacity:[1,0], transform:['scale(1)','scale(.97)']}, {duration:.18, ease:[.4,0,1,1]}).then(() => {}, () => {});
+    return Motion.animate(el, {opacity:[1,0], transform:['translateY(0px) scale(1)','translateY(-6px) scale(.97)']}, {duration:.32, ease:EASE_IN}).then(() => {}, () => {});
   },
-  /* отметка: короткий отклик точкой или галочкой */
-  pop(el, from = .6){
+  /* отклик на касание: точка или галочка коротко вырастает */
+  pop(el, from = .6, delay = 0){
     if(!Anim.on() || !el) return;
-    Motion.animate(el, {transform:['scale(' + from + ')','scale(1)']}, {type:'spring', visualDuration:.3, bounce:.35});
+    Motion.animate(el, {transform:['scale(' + from + ')','scale(1)']}, {type:'spring', visualDuration:.45, bounce:.3, delay});
+  },
+  /* переезд со старого места на новое */
+  slide(el, dx, dy){
+    if(!Anim.on() || !el) return;
+    Anim.done(Motion.animate(el, {transform:['translate(' + dx + 'px,' + dy + 'px)','translate(0px,0px)']}, {duration:.6, ease:EASE}), el);
   }
 };
 
@@ -178,10 +186,9 @@ function useFlip(ref){
       next.set(k, {top, left});
       if(!was || !Anim.on()) return;
       const o = was.get(k);
-      if(!o){ Motion.animate(el, {opacity:[0,1], transform:['translateY(6px)','translateY(0px)']}, {type:'spring', visualDuration:.34, bounce:0, opacity:{duration:.2}}); return; }
+      if(!o){ Anim.reveal(el); return; }
       const dx = o.left - left, dy = o.top - top;
-      if(Math.abs(dx) > 1 || Math.abs(dy) > 1) Motion.animate(el, {transform:['translate(' + dx + 'px,' + dy + 'px)','translate(0px,0px)']}, {type:'spring', visualDuration:.42, bounce:0})
-        .then(() => { el.style.transform = ''; }, () => {});
+      if(Math.abs(dx) > 1 || Math.abs(dy) > 1) Anim.slide(el, dx, dy);
     });
     rects.current = next;
   });
@@ -265,7 +272,7 @@ function usePop(open, setOpen, trig){
     const down = e => { if(pop.current && !pop.current.contains(e.target) && trig.current && !trig.current.contains(e.target)) setOpen(false); };
     const sc = e => { if(pop.current && pop.current.contains(e.target)) return; place(); };
     document.addEventListener('pointerdown', down); addEventListener('scroll', sc, true); addEventListener('resize', place);
-    if(pop.current && Anim.on()) Motion.animate(pop.current, {opacity:[0,1], transform:['translateY(-4px) scale(.98)','translateY(0px) scale(1)']}, {type:'spring', visualDuration:.2, bounce:0});
+    if(pop.current && Anim.on()) Motion.animate(pop.current, {opacity:[0,1], transform:['translateY(-6px) scale(.97)','translateY(0px) scale(1)']}, {duration:.32, ease:EASE, opacity:{duration:.2}});
     return () => { document.removeEventListener('pointerdown', down); removeEventListener('scroll', sc, true); removeEventListener('resize', place); };
   }, [open]);
   return {pop, style:pos ? {left:pos.left, top:pos.top, minWidth:pos.width} : {left:0, top:0, visibility:'hidden'}};

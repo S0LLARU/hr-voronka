@@ -37,6 +37,9 @@ function RequestForm({r, onClose, inline, guard, notes}){
     return Object.assign({}, EMPTY, {manager:me.role === 'manager' ? v : '', dept:me.dept || ''});
   };
   const [f, setF] = useState(init), [err, setErr] = useState({}), [dirty, setDirty] = useState(false), [ask, setAsk] = useState(false), [step, setStep] = useState(0);
+  /* шаг вперёд — поля приезжают справа, назад — слева */
+  const wb = useRef(null), stepWas = useRef(step);
+  useLayoutEffect(() => { if(stepWas.current === step) return; const dir = step < stepWas.current ? 'back' : 'fwd'; stepWas.current = step; Anim.push(wb.current, dir); }, [step]);
   const file = useRef(null), box = useRef(null);
   const set = k => e => { const val = e && e.target ? e.target.value : e; setF(Object.assign({}, f, {[k]:val})); setDirty(true); if(err[k] || (k.startsWith('sal') && err.salary)) setErr(Object.assign({}, err, {[k]:'', salary:''})); };
   const managers = Object.entries(Model.PEOPLE).filter(([, p]) => p.role === 'manager' || p.role === 'hrd');
@@ -165,7 +168,7 @@ function RequestForm({r, onClose, inline, guard, notes}){
   return html`<div className="mpage wiz-page" ref=${box}>
     <${ModalHead} title=${r ? 'Черновик заявки' : 'Новая заявка'} sub=${r && html`<${BackLink} href=${'#/r/' + r.id}>${r.title}<//>`} strip=${wiz}/>
     ${returned && html`<${Note} title="Что просят исправить" by=${r.returned.by} at=${r.returned.at} quote=${r.returned.comment}/>`}
-    <div className="wiz-body" key=${step}>${parts[STEPS[step].k]}</div>
+    <div className="wiz-body" key=${step} ref=${wb}>${parts[STEPS[step].k]}</div>
     <${ModalFoot}>${ask ? html`<div className="row is-end guard-row" role="alert"><span>Есть несохранённые изменения.</span>
         <${Btn} kind="ghost" onClick=${() => setAsk(false)}>Остаться<//>
         <${Btn} kind="danger" onClick=${() => { const then = ask; setAsk(false); setDirty(false); Panel.leave = f => f(); then(); }}>Не сохранять<//>

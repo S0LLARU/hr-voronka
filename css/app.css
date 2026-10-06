@@ -37,10 +37,12 @@ a{color:var(--accent)}
 .grow{flex:1;min-width:0}
 
 /* ---------- каркас: меню слева, полоса с крошками, содержимое ---------- */
-.app{display:grid;grid-template-columns:260px minmax(0,1fr);height:100vh;height:100dvh}
-.app.is-collapsed{grid-template-columns:minmax(0,1fr)}
-.app.is-collapsed .side{display:none}
-.side{display:flex;flex-direction:column;min-height:0;padding:18px 12px 12px;background:var(--side);border-right:1px solid var(--line)}
+/* меню сворачивается плавно: колонка сужается, содержимое не переносится, а уходит за край */
+.app{display:grid;grid-template-columns:260px minmax(0,1fr);height:100vh;height:100dvh;transition:grid-template-columns .45s cubic-bezier(.22,1,.36,1)}
+.app.is-collapsed{grid-template-columns:0px minmax(0,1fr)}
+.app.is-collapsed .side{visibility:hidden;border-right-color:transparent}
+.side{display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;padding:18px 12px 12px;background:var(--side);border-right:1px solid var(--line);transition:visibility .45s,border-color .45s}
+.side > *{min-width:236px}
 .brand{display:flex;align-items:center;gap:12px;padding:0 8px 26px}
 .brand-i{flex:none;display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;background:var(--ink);color:#fff}
 .brand-n{display:block;font-weight:600;font-size:16.5px;line-height:1.2;letter-spacing:-.012em}
@@ -125,7 +127,7 @@ a.btn-primary,.btn-primary{background:var(--primary);color:#fff}
 .empty-line{margin:0;padding:20px 24px 0;color:var(--ink-3);text-align:center;grid-column:1/-1}
 
 .card{display:block;width:100%;padding:12px 13px 11px;border:1px solid var(--line);border-radius:var(--r-card);background:var(--bg);text-align:left;
-  transition:border-color .15s ease,box-shadow .15s ease}
+  transition:border-color .25s ease,box-shadow .3s ease,background-color .25s ease}
 .card:hover{border-color:var(--line-2);box-shadow:0 1px 2px rgba(17,17,19,.04),0 3px 10px rgba(17,17,19,.05)}
 .card.is-mine{border-color:var(--accent-line);background:var(--accent-soft)}
 .card.is-mine .c-title{color:var(--accent)}
@@ -315,7 +317,7 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 /* заявка после согласования: открыта, сворачивается заголовком */
 .fold{display:flex;align-items:center;gap:10px;width:100%;padding:0;border:0;background:none;font:inherit;text-align:left;border-radius:6px}
 .fold-s{flex:1;min-width:0;font-size:14px;font-weight:400;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:0}
-.fold-i{display:inline-flex;margin-left:auto;color:var(--ink-3);transition:transform .15s}
+.fold-i{display:inline-flex;margin-left:auto;color:var(--ink-3);transition:transform .35s cubic-bezier(.22,1,.36,1)}
 .fold[aria-expanded=true] .fold-i{transform:rotate(180deg)}
 .box.is-fold{padding:16px 20px}
 .box.is-fold .fold{min-height:24px}
@@ -475,6 +477,17 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
 .rev-t{margin-top:8px;background:#fff}
 @media (hover:none){.rev-b{opacity:1}}
 
+/* ---------- мягкие переходы состояний ----------
+   Наведение, выбор, появление подсказок и ошибок — без рывков. При «уменьшить движение» выключено ниже. */
+.seg button{transition:background-color .25s ease,color .25s ease,box-shadow .25s ease}
+.opt,.menu-item,.ck,.tl-more,.crej-r,.tasks-done a,.nav-item{transition:background-color .2s ease,color .2s ease}
+.link-btn,.m-back,a{transition:color .2s ease}
+.inp,.sel{transition:border-color .2s ease,box-shadow .2s ease,background-color .2s ease}
+.err,.fnote,.hint,.guard,.guard-row{animation:soft-in .4s cubic-bezier(.22,1,.36,1) both}
+@keyframes soft-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0px)}}
+.rp-d,.rp-l{transition:background-color .35s ease,border-color .35s ease,color .35s ease,border-width .35s ease}
+.wiz li *{transition:background-color .35s ease,border-color .35s ease,color .35s ease}
+
 @media (max-width:1180px){
   .board{grid-template-columns:repeat(5,250px)}
   .board.is-3{grid-template-columns:repeat(3,minmax(250px,1fr))}
@@ -529,4 +542,4 @@ select.inp{padding-right:30px;appearance:none;background:var(--bg) url("data:ima
   .ck-l{grid-template-columns:minmax(0,1fr)}
   .acts-r{margin-left:0}
 }
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
