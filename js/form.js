@@ -144,7 +144,7 @@ function RequestForm({r, onClose, inline, guard, notes}){
         ${f.files.length > 0 && html`<ul className="files">${f.files.map((x, i) => html`<li key=${i}><${Icon} n="clip" s=${15}/>${x.name}
           <button className="btn btn-ghost" style=${{height:28}} aria-label=${'Убрать ' + x.name} onClick=${() => set('files')(f.files.filter((_, j) => j !== i))}><${Icon} n="x" s=${14}/></button></li>`)}</ul>`}
         <${Btn} onClick=${() => file.current.click()}><${Icon} n="clip" s=${15}/>Прикрепить ТЗ или материалы<//>
-        <input ref=${file} type="file" multiple hidden onChange=${e => { const fs = Array.from(e.target.files).map(x => ({name:x.name, size:x.size})); if(fs.length) set('files')(f.files.concat(fs)); e.target.value = ''; }}/>
+        <input ref=${file} type="file" multiple hidden onChange=${e => { const fs = Array.from(e.target.files); e.target.value = ''; if(fs.length) Store.upload(fs).then(up => { if(!up.length) return; setF(x => Object.assign({}, x, {files:x.files.concat(Store.remote ? up : up.map(u => ({name:u.name, size:u.size})))})); setDirty(true); }); }}/>
       </div>
     <//>`
   };

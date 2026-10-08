@@ -201,7 +201,7 @@ function Decide({actions, extra}){
   useEffect(() => { if(open){ Anim.reveal(box.current); area.current && area.current.focus(); } }, [open]);
   const a = open != null ? actions[open] : null;
   const go = () => {
-    if(a.need && !text.trim()){ setErr('Напишите комментарий: без него ' + a.whom + ' не поймёт, что исправить'); area.current.focus(); return; }
+    if(a.need && !text.trim()){ setErr(a.needText || 'Напишите комментарий: без него ' + a.whom + ' не поймёт, что исправить'); area.current.focus(); return; }
     a.run(text.trim()); setOpen(null); setText(''); setErr('');
   };
   if(a) return html`<div ref=${box} className="decide">
@@ -252,8 +252,9 @@ function BackLink({href, children}){
 /* дата для <input type=date> и обратно */
 const toInput = t => { if(!t) return ''; const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
 const fromInput = s => { if(!s) return null; const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d, 10).getTime(); };
-const name = id => id ? Model.PEOPLE[id].name : '';
-const shortName = id => id ? Model.short(Model.PEOPLE[id].name) : '';
+/* человека могли убрать с сайта, а в истории он остался — пишем прочерк, а не падаем */
+const name = id => id ? (Model.PEOPLE[id] || {name:'—'}).name : '';
+const shortName = id => id ? Model.short((Model.PEOPLE[id] || {name:'—'}).name) : '';
 
 /* ---------- поля как в shadcn/ui: список, календарь, число ----------
    Всплывающее окно рисуется поверх всего (портал в body) и встаёт под полем или над ним,

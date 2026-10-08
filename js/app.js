@@ -224,4 +224,12 @@ function App(){
   </div>`;
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(html`<${App}/>`);
+/* на сервере сначала ждём данные и людей: экранам нужен тот, кто смотрит */
+Store.ready.then(() => {
+  const root = document.getElementById('root');
+  if(!Store.viewer()){ root.innerHTML = '<p class="boot-msg">В воронке пока нет участников. Выдайте людям роли HR-директор, Рекрутер или Менеджер в «Администрировании».</p>'; return; }
+  ReactDOM.createRoot(root).render(html`<${App}/>`);
+}, e => {
+  const p = document.createElement('p'); p.className = 'boot-msg'; p.textContent = 'Воронка не загрузилась: ' + (e && e.message || 'сервер недоступен') + '. Обновите страницу.';
+  document.getElementById('root').replaceChildren(p);
+});

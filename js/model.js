@@ -5,14 +5,16 @@
    оно меняет заявку и пишет запись в историю — кто, когда, что, с каким комментарием.
    Демонстрационные данные собраны теми же действиями, поэтому история у них настоящая.
 
-   Сейчас всё хранится в браузере (localStorage). Сервер встанет на место Store,
-   экраны при этом не меняются. */
+   Модель не знает, где лежат данные: хранит их Store (js/store.js) — в браузере или на сервере.
+   Сервер сайта выполняет эту же модель: check() решает, можно ли человеку действие, act() его делает.
+   Поэтому здесь нет ни DOM, ни localStorage. */
 'use strict';
 
 const Model = (function(){
   const H = 3600e3, D = 24 * H;
 
-  const ROLE = {manager:'Руководитель', hrd:'HRD', recruiter:'Рекрутер', finance:'Finance', ceo:'CEO'};
+  /* former — человек есть в истории, но роли в воронке у него больше нет */
+  const ROLE = {manager:'Руководитель', hrd:'HRD', recruiter:'Рекрутер', finance:'Finance', ceo:'CEO', former:'Не в воронке'};
 
   const PEOPLE = {
     dan:{name:'Данияр Ахметов', role:'manager', dept:'Продакшн'},
@@ -25,11 +27,21 @@ const Model = (function(){
     rin:{name:'Ринат Оспанов', role:'finance'},
     arm:{name:'Арман Тлеубаев', role:'ceo'}
   };
-  const HRD = 'gul', FIN = 'rin', CEO = 'arm';
+  let HRD = 'gul', FIN = 'rin', CEO = 'arm';
   const RECRUITERS = ['ali','sam'];
 
+  /* люди с сервера вместо демонстрационных. HRD, Finance и CEO — первые с этой ролью:
+     шаги «ждёт HR» и «ждёт Finance» адресованы одному человеку */
+  function configure(people){
+    Object.keys(PEOPLE).forEach(k => { delete PEOPLE[k]; });
+    Object.assign(PEOPLE, people);
+    const ids = role => Object.keys(PEOPLE).filter(id => PEOPLE[id].role === role);
+    HRD = ids('hrd')[0] || null; FIN = ids('finance')[0] || null; CEO = ids('ceo')[0] || null;
+    RECRUITERS.splice(0, RECRUITERS.length, ...ids('recruiter'));
+  }
+
   /* сколько шаг может ждать, пока не станет просроченным; потом настраивает администратор */
-  const SLA = {hr:D, returned:2*D, finance:D, ceo:D, assign:D, assigned:D, inwork:2*D, feedback:D, offer:D, fin:D, fot:2*D};
+  const SLA = {hr:D, returned:2*D, finance:D, ceo:D, assign:D, assigned:D, inwork:2*D, feedback:D, call:D, invite:D, interview:2*D, terms:D, hrok:D, offer:D, answer:2*D, fin:D, fot:2*D};
 
   const DEPTS = ['Продакшн','Маркетинг','Продажи','Разработка','Финансы','Администрация'];
   const REASONS = {new:'Новая позиция', replace:'Замена сотрудника', grow:'Расширение команды', other:'Другое'};
@@ -42,13 +54,15 @@ const Model = (function(){
   const CANCEL = ['Позиция больше не требуется','Нашли внутри компании','Другое'];
 
   /* этапы кандидата (п. 12): «Одобрен» — решение руководителя. Тестового этапа нет (решение пользователя):
-     кнопка ничего не меняла, тестовое — часть интервью */
+     кнопка ничего не меняла, тестовое — часть интервью.
+     Оффер — после стажировки (решение пользователя): до неё кандидат узнаёт условия и соглашается
+     выйти на стажировку, а оффер получает, когда руководитель решил «Нанимаем» */
   const STAGES = [
     {id:'hr', name:'Интервью HR'},
     {id:'mgr', name:'Руководитель'},
-    {id:'offer', name:'Оффер'}
+    {id:'terms', name:'Условия'}
   ];
-  const stageGroup = s => s === 'approved' ? 'offer' : s;
+  const stageGroup = s => s === 'approved' ? 'terms' : s;
 
   /* чек-листы (пп. 14, 15, 17, 18); who — кто отмечает пункт */
   const LISTS = {
@@ -60,9 +74,8 @@ const Model = (function(){
       ['Установить нужные программы','recruiter']]},
     day1:{name:'Первый рабочий день', items:[
       ['Приветствие на экране к 10:00','recruiter'],['Приветствие в рабочем чате','recruiter'],['Встретить на ресепшн','recruiter'],
-      ['Познакомить с HR и руководителем отдела','recruiter'],['Представить команде','manager'],['Познакомить с непосредственным руководителем','manager'],
-      ['Назначить наставника','manager'],['Провести IT-брифинг','recruiter'],['Проверить технику','recruiter'],['Проверить доступы','recruiter'],
-      ['Провести по To-do листу','mentor'],['Обозначить первые задачи','mentor'],['Объяснить рабочие процессы','mentor']]},
+      ['Познакомить с HR и руководителем отдела','recruiter'],['Назначен наставник','recruiter'],['Представить команде','manager'],
+      ['Познакомить с непосредственным руководителем','manager'],['Провести IT-брифинг','recruiter'],['Проверить технику','recruiter'],['Проверить доступы','recruiter']]},
     docs:{name:'Документы', items:[
       ['Подготовить трудовой договор','recruiter'],['Подписать трудовой договор','recruiter'],['Создать личное дело','recruiter'],
       ['Внести сотрудника в 1С','recruiter'],['Зарегистрировать в Clockster','recruiter'],['Заполнить данные сотрудника','recruiter'],
@@ -81,13 +94,13 @@ const Model = (function(){
     {id:'approve', name:'Согласование', steps:['HR','Finance','CEO']},
     {id:'search', name:'Подбор', steps:['Рекрутер','Публикация','Кандидаты']},
     {id:'start', name:'Выход', steps:['Подготовка','Стажировка']},
-    {id:'hire', name:'Оформление', steps:['Документы','Finance','ФОТ']},
+    {id:'hire', name:'Оформление', steps:['HR','Оффер','Документы','ФОТ']},
     {id:'closed', name:'Закрыто', steps:[]}
   ];
 
   const activeHires = r => r.hires.filter(h => h.stage !== 'dropped');
   const openHires = r => activeHires(r).filter(h => h.stage !== 'done');
-  const HIRE_PHASE = {prep:'start', intern:'start', docs:'hire', fin:'hire', fot:'hire'};
+  const HIRE_PHASE = {prep:'start', intern:'start', hrok:'hire', offer:'hire', offered:'hire', docs:'hire', fin:'hire', fot:'hire'};
 
   function phase(r){
     if(['draft','hr','returned','finance','ceo'].includes(r.status)) return 'approve';
@@ -107,7 +120,7 @@ const Model = (function(){
     const h = openHires(r)[0];
     if(!h) return null;
     if(p === 'start') return {n:2, at:h.stage === 'prep' ? 0 : 1};
-    return {n:3, at:{docs:0, fin:1, fot:2}[h.stage]};
+    return {n:4, at:{hrok:0, offer:1, offered:1, docs:2, fin:3, fot:3}[h.stage]};
   }
 
   /* ---------- статус словами (п. 5) ---------- */
@@ -118,7 +131,7 @@ const Model = (function(){
     if(s) return s;
     const o = openHires(r);
     if(activeHires(r).length < r.seats || !o.length) return r.candidates.length ? 'В подборе' : 'Вакансия опубликована';
-    return {prep:'Кандидат выбран', intern:'Стажировка', docs:'Оформление', fin:'Передано в Finance', fot:'Передано в Finance'}[o[0].stage];
+    return {prep:'Кандидат выбран', intern:'Стажировка', hrok:'Подтверждение HR', offer:'Оффер', offered:'Оффер отправлен', docs:'Оформление', fin:'Передано в Finance', fot:'Передано в Finance'}[o[0].stage];
   }
 
   /* ---------- чей сейчас ход ----------
@@ -140,15 +153,33 @@ const Model = (function(){
     if(['closed','rejected','cancelled'].includes(r.status)) return t;
 
     if(activeHires(r).length < r.seats){
-      const atMgr = r.candidates.filter(c => c.stage === 'mgr');
+      /* интервью — у HRD, затем у руководителя (решение пользователя). Каждый сам назначает день и время,
+         потом отмечает, что интервью прошло; только после этого кандидат идёт дальше */
+      const n_ = n => n + ' ' + plural(n, 'кандидат','кандидата','кандидатов');
+      const at = (k, st) => r.candidates.filter(c => ivStage(c) === k && ivState(c, k) === st);
+      const hrAt = st => r.candidates.filter(c => ivStage(c) === 'hr' && hrStep(c) === st);
+      const since = (l, f) => Math.min(...l.map(f));
+      const call = hrAt('call'), review = hrAt('review'), invite = hrAt('invite'), hrSet = hrAt('set'), hrDone = hrAt('done');
+      if(call.length) t.push({p:r.recruiter, text:'Рекрутер созванивается с кандидатами', full:'Рекрутер созванивается: ' + n_(call.length),
+        mine:'Созвониться и доложить HR: ' + n_(call.length), since:since(call, c => c.stageAt), sla:SLA.call, tab:'candidates'});
+      if(review.length) t.push({p:HRD, text:'HR решает, звать ли на интервью', full:'HR решает, звать ли на интервью: ' + n_(review.length),
+        mine:'Решить, звать ли на интервью: ' + n_(review.length), since:since(review, c => c.screen.at), sla:SLA.invite, tab:'candidates'});
+      if(invite.length) t.push({p:r.recruiter, text:'Рекрутер назначает интервью HR', full:'Рекрутер назначает интервью HR: ' + n_(invite.length),
+        mine:'Назначить интервью HR: ' + n_(invite.length), since:since(invite, c => c.invite.at), sla:SLA.invite, tab:'candidates'});
+      if(hrSet.length) t.push({p:HRD, text:IV_NAME.hr, full:IV_NAME.hr + ': ' + n_(hrSet.length), mine:'Провести интервью: ' + n_(hrSet.length),
+        due:since(hrSet, c => c.iv.hr.when), dueKind:'at', ongoing:true, tab:'candidates'});
+      if(hrDone.length) t.push({p:HRD, text:'Интервью HR пройдено', full:'Интервью HR пройдено: ' + n_(hrDone.length) + ', ждут передачи руководителю',
+        mine:'Отправить руководителю: ' + n_(hrDone.length), since:since(hrDone, c => c.iv.hr.done.at), sla:SLA.feedback, tab:'candidates'});
+      /* интервью с руководителем: он сам назначает, проводит и решает */
+      const mNone = at('mgr', 'none'), mSet = at('mgr', 'set'), mDone = at('mgr', 'done'), p = r.manager;
+      if(mNone.length) t.push({p, text:'Руководитель назначает интервью', full:'Руководитель назначает интервью: ' + n_(mNone.length),
+        mine:'Назначить интервью: ' + n_(mNone.length), since:since(mNone, c => c.stageAt), sla:SLA.interview, tab:'candidates'});
+      if(mSet.length) t.push({p, text:IV_NAME.mgr, full:IV_NAME.mgr + ': ' + n_(mSet.length), mine:'Провести интервью: ' + n_(mSet.length),
+        due:since(mSet, c => c.iv.mgr.when), dueKind:'at', ongoing:true, tab:'candidates'});
+      if(mDone.length) t.push({p, text:'Ждёт ответа руководителя', full:'Ждёт ответа руководителя по ' + mDone.length + ' ' + plural(mDone.length, 'кандидату','кандидатам','кандидатам'),
+        mine:'Ответить по ' + mDone.length + ' ' + plural(mDone.length, 'кандидату','кандидатам','кандидатам'), since:since(mDone, c => c.iv.mgr.done.at), sla:SLA.feedback, tab:'candidates'});
       const approved = r.candidates.filter(c => c.stage === 'approved');
-      if(atMgr.length){
-        const n = atMgr.length;
-        t.push({p:r.manager, text:'Ждёт ответа руководителя', full:'Ждёт ответа руководителя по ' + n + ' ' + plural(n, 'кандидату','кандидатам','кандидатам'),
-          mine:'Ответить по ' + n + ' ' + plural(n, 'кандидату','кандидатам','кандидатам'),
-          since:Math.min(...atMgr.map(c => c.stageAt)), sla:SLA.feedback, tab:'candidates'});
-      }
-      if(approved.length) t.push({p:r.recruiter, text:'Рекрутер готовит оффер', mine:'Отправить оффер', since:Math.min(...approved.map(c => c.stageAt)), sla:SLA.offer, tab:'candidates'});
+      if(approved.length) t.push({p:r.recruiter, text:'Рекрутер предлагает стажировку', mine:'Предложить стажировку', since:Math.min(...approved.map(c => c.stageAt)), sla:SLA.terms, tab:'candidates'});
       if(!t.length) t.push({p:r.recruiter, text:'Идёт подбор', mine:'Идёт подбор', ongoing:true, passive:true, tab:'candidates'});
     }
     openHires(r).forEach(h => {
@@ -159,6 +190,9 @@ const Model = (function(){
           count:[l.length - l.filter(i => !i.done).length, l.length]});
       }
       if(h.stage === 'intern') t.push({p:r.manager, h:h.id, hn:nm, text:'Решение по стажировке', mine:'Решить по стажировке', due:h.decideBy, dueKind:'до'});
+      if(h.stage === 'hrok') t.push({p:HRD, h:h.id, hn:nm, text:'HR подтверждает найм', mine:'Подтвердить найм', since:h.stageAt, sla:SLA.hrok});
+      if(h.stage === 'offer') t.push({p:r.recruiter, h:h.id, hn:nm, text:'Рекрутер готовит оффер', mine:'Отправить оффер', since:h.stageAt, sla:SLA.offer});
+      if(h.stage === 'offered') t.push({p:r.recruiter, h:h.id, hn:nm, text:'Ждём ответа на оффер', mine:'Отметить ответ на оффер', since:h.stageAt, sla:SLA.answer});
       if(h.stage === 'docs'){
         const l = h.lists.docs;
         t.push({p:r.recruiter, h:h.id, hn:nm, text:'Оформляем', mine:'Оформить сотрудника', since:h.stageAt, ongoing:listLeft(l) > 0,
@@ -167,6 +201,49 @@ const Model = (function(){
       if(h.stage === 'fot') t.push({p:FIN, h:h.id, hn:nm, text:'Finance учитывает в ФОТ', mine:'Учесть в ФОТ', since:h.stageAt, sla:SLA.fot});
     });
     return t;
+  }
+  /* интервью кандидата: на каком он (hr / mgr) и в каком состоянии — не назначено, назначено, проведено */
+  const IV_NAME = {hr:'Интервью HR', mgr:'Интервью с руководителем'};
+  const ivStage = c => ['hr','new','test'].includes(c.stage) ? 'hr' : c.stage === 'mgr' ? 'mgr' : null;
+  /* до интервью HR: рекрутер звонит и докладывает, HR решает, звать ли, рекрутер назначает дату (решение пользователя) */
+  const hrStep = c => !c.screen ? 'call' : !c.invite ? 'review' : ivState(c, 'hr') === 'none' ? 'invite' : ivState(c, 'hr');
+  /* результат тестового прикладывают от добавления кандидата до выхода на стажировку */
+  const TEST_KINDS = ['Тестовое задание', 'Результат тестового'];
+  const testFiles = c => (c.files || []).filter(f => TEST_KINDS.includes(f.kind));
+  const canAttach = (r, c) => { if(['hr','new','test','mgr','approved'].includes(c.stage)) return true;
+    const h = c.stage === 'accepted' && r.hires.find(x => x.cid === c.id); return !!h && h.stage === 'prep'; };
+  const ivState = (c, k) => { const x = (c.iv || {})[k]; return !x ? 'none' : x.done ? 'done' : 'set'; };
+
+  /* чего сейчас ждёт кандидат и от кого — пишем в карточке и окне кандидата, чтобы было понятно, почему он стоит */
+  function candNow(r, c){
+    const k = ivStage(c);
+    if(k === 'hr') return {
+      call:{text:'Ждёт звонка рекрутера', p:r.recruiter},
+      review:{text:'Рекрутер доложил, HR решает, звать ли на интервью', p:HRD},
+      invite:{text:'HR зовёт на интервью, рекрутер назначает дату', p:r.recruiter},
+      set:{text:IV_NAME.hr, p:HRD, when:c.iv && c.iv.hr && c.iv.hr.when},
+      done:{text:'Интервью HR пройдено, ждёт передачи руководителю', p:HRD}
+    }[hrStep(c)];
+    if(k === 'mgr'){
+      const st = ivState(c, 'mgr'), p = r.manager;
+      if(st === 'none') return {text:'Ждёт, когда руководитель назначит интервью', p};
+      if(st === 'set') return {text:IV_NAME.mgr, p, when:c.iv.mgr.when};
+      return {text:'Интервью пройдено, ждёт решения руководителя', p};
+    }
+    if(c.stage === 'approved') return {text:'Одобрен, рекрутер предлагает стажировку', p:r.recruiter};
+    if(c.stage !== 'accepted') return null;
+    const h = r.hires.find(x => x.cid === c.id);
+    if(!h) return null;
+    return {
+      prep:{text:'Готовится к выходу на стажировку', p:r.recruiter, when:h.start, day:true},
+      intern:{text:'На стажировке, ждёт решения руководителя', p:r.manager, when:h.decideBy, day:true, until:true},
+      hrok:{text:'Руководитель решил нанять, ждёт подтверждения HR', p:HRD},
+      offer:{text:'Стажировку прошёл, рекрутер готовит оффер', p:r.recruiter},
+      offered:{text:'Оффер отправлен, ждём ответа кандидата', p:r.recruiter},
+      docs:{text:'Принял оффер, идёт оформление', p:r.recruiter},
+      fin:{text:'Оформлен, Finance учитывает в ФОТ', p:FIN},
+      fot:{text:'Оформлен, Finance учитывает в ФОТ', p:FIN}
+    }[h.stage] || null;
   }
   const isRange = s => /\d\s*[-–—]\s*\d|(^|\s)(от|до)\s/i.test(s || '');
   const mineTurn = (x, v) => x.p === v && !x.passive;
@@ -214,6 +291,11 @@ const Model = (function(){
   /* ---------- действия ---------- */
   let seq = 1;
   const uid = p => p + (Date.now() % 1e7).toString(36) + (seq++).toString(36);
+  /* id новой заявки, кандидата и сотрудника задаёт тот, кто действие начал (p.newId): экран показывает
+     запись сразу, а сервер, повторив действие, получает ту же запись под тем же id */
+  const NEW_ID = {create:'r', addCandidate:'c', accepted:'h'};
+  const newId = type => { const b = new Uint8Array(9); crypto.getRandomValues(b); return NEW_ID[type] + Array.from(b, x => (x % 36).toString(36)).join(''); };
+  const takenId = (S, id) => S.requests.some(r => r.id === id || r.candidates.some(c => c.id === id) || r.hires.some(h => h.id === id));
 
   function log(r, by, at, text, comment, step){
     r.log.push({at, by, text, comment:comment || '', step:step || ''});
@@ -231,7 +313,7 @@ const Model = (function(){
 
   const A = {
     create(S, by, at, p){
-      const r = {id:uid('r'), initiator:by, created:at, updated:at, status:'draft', statusAt:at, log:[], candidates:[], hires:[],
+      const r = {id:p.newId || uid('r'), initiator:by, created:at, updated:at, status:'draft', statusAt:at, log:[], candidates:[], hires:[],
         publications:[], reached:{}, recruiter:null, deadline:null, returned:null, closedAt:null, cancel:null};
       FIELDS.forEach(k => { r[k] = p.fields[k] ?? (k === 'files' ? [] : ''); });
       r.seats = Math.max(1, +r.seats || 1);
@@ -270,13 +352,44 @@ const Model = (function(){
     },
     addCandidate(S, by, at, p){
       const r = find(S, p.id), f = p.fields;
-      const c = {id:uid('c'), name:f.name, phone:f.phone || '', tg:f.tg || '', email:f.email || '', resume:f.resume || '',
+      const c = {id:p.newId || uid('c'), name:f.name, phone:f.phone || '', tg:f.tg || '', email:f.email || '', resume:f.resume || '',
         source:f.source || '', expect:f.expect || '', position:f.position || '', experience:f.experience || '', comment:f.comment || '',
-        files:f.files || [], stage:'hr', stageAt:at, added:at, timeline:[], feedback:[], reject:null};
+        files:f.files || [], stage:'hr', stageAt:at, added:at, iv:{}, timeline:[], feedback:[], reject:null};
       r.candidates.push(c);
       ctl(c, at, by, 'Кандидат добавлен');
       log(r, by, at, 'Добавил кандидата: ' + c.name, '', 'cand');
       return c.id;
+    },
+    /* рекрутер созвонился с кандидатом и доложил HR */
+    screened(S, by, at, p){
+      const r = find(S, p.id), c = cand(r, p.cid);
+      c.screen = {at, by, text:p.text};
+      ctl(c, at, by, 'Рекрутер созвонился и доложил HR');
+      log(r, by, at, c.name + ': созвонился и доложил HR', p.text, 'cand');
+    },
+    /* HR решила звать на интервью — дату назначает рекрутер */
+    invite(S, by, at, p){
+      const r = find(S, p.id), c = cand(r, p.cid);
+      c.invite = {at, by, comment:p.comment || ''};
+      ctl(c, at, by, 'HR: пригласить на интервью');
+      log(r, by, at, c.name + ': пригласить на интервью HR', p.comment, 'cand');
+    },
+    /* рекрутер (интервью HR) или руководитель (своё) назначает или переносит интервью */
+    schedule(S, by, at, p){
+      const r = find(S, p.id), c = cand(r, p.cid);
+      c.iv = c.iv || {};
+      const was = c.iv[p.kind];
+      c.iv[p.kind] = {when:p.when, by, set:at, done:null};
+      const text = IV_NAME[p.kind] + (was ? ' перенесено на ' : ' назначено на ') + fmtDateTime(p.when);
+      ctl(c, at, by, text);
+      log(r, by, at, c.name + ': ' + lower1(text), '', 'cand');
+    },
+    interviewed(S, by, at, p){
+      const r = find(S, p.id), c = cand(r, p.cid);
+      c.iv[p.kind].done = {at, by};
+      const text = IV_NAME[p.kind] + ' проведено';
+      ctl(c, at, by, text);
+      log(r, by, at, c.name + ': ' + lower1(text), '', 'cand');
     },
     move(S, by, at, p){
       const r = find(S, p.id), c = cand(r, p.cid), name = STAGES.find(s => s.id === p.to).name;
@@ -306,20 +419,43 @@ const Model = (function(){
       ctl(c, at, by, 'Отказ: ' + p.reason.toLowerCase());
       log(r, by, at, 'Отказ кандидату ' + c.name + ': ' + p.reason.toLowerCase(), p.comment, 'cand');
     },
-    offer(S, by, at, p){
-      const r = find(S, p.id), c = cand(r, p.cid);
-      c.stage = 'offer'; c.stageAt = at; c.offer = {salary:p.salary, start:p.start, at};
-      ctl(c, at, by, 'Отправлен оффер');
-      log(r, by, at, 'Отправил оффер: ' + c.name, '', 'offer');
-    },
+    /* кандидат узнал условия и согласился выйти на стажировку: дальше его путь — сотрудник (hire) */
     accepted(S, by, at, p){
       const r = find(S, p.id), c = cand(r, p.cid);
       c.stage = 'accepted'; c.stageAt = at;
-      const h = {id:uid('h'), cid:c.id, name:c.name, start:p.start, stage:'prep', stageAt:at, chosen:at, decideBy:null, decision:null,
-        lists:{prep:makeList('prep')}, hiredAt:null, finAccepted:null, fotAt:null, salary:p.salary || (c.offer && c.offer.salary) || r.salary};
+      const h = {id:p.newId || uid('h'), cid:c.id, name:c.name, start:p.start, stage:'prep', stageAt:at, chosen:at, decideBy:null, decision:null,
+        lists:{prep:makeList('prep')}, offerAt:null, hiredAt:null, finAccepted:null, fotAt:null, dropFrom:null, salary:p.salary || r.salary};
       r.hires.push(h);
-      ctl(c, at, by, 'Согласился, выход ' + fmtDate(p.start) + (p.salary ? ', оклад ' + p.salary : ''));
-      log(r, by, at, c.name + ' согласился на оффер, выход ' + fmtDate(p.start), '', 'accepted');
+      ctl(c, at, by, 'Согласился на стажировку, выход ' + fmtDate(p.start) + (p.salary ? ', оклад ' + p.salary : ''));
+      log(r, by, at, c.name + ' согласился на стажировку, выход ' + fmtDate(p.start), '', 'accepted');
+    },
+    /* после «Нанимаем» HR подтверждает найм — только потом оффер (решение пользователя) */
+    hrConfirm(S, by, at, p){
+      const r = find(S, p.id), h = hire(r, p.hid), c = cand(r, h.cid);
+      if(p.yes){ h.stage = 'offer'; h.stageAt = at; ctl(c, at, by, 'HR подтвердил найм'); log(r, by, at, 'Подтвердил найм: ' + h.name, p.comment, 'hrok'); return; }
+      h.stage = 'dropped'; h.stageAt = at; h.dropFrom = 'hrok';
+      c.stage = 'rejected'; c.reject = {at, by, from:'hrok', reason:'HR не подтвердил найм', comment:p.comment || ''};
+      ctl(c, at, by, 'HR не подтвердил найм'); log(r, by, at, 'Не подтвердил найм: ' + h.name, p.comment, 'declined');
+    },
+    /* оффер: итоговый оклад, на который согласились, — его получит Finance */
+    offer(S, by, at, p){
+      const r = find(S, p.id), h = hire(r, p.hid);
+      h.stage = 'offered'; h.stageAt = at; h.offerAt = at; h.salary = p.salary || h.salary;
+      ctl(cand(r, h.cid), at, by, 'Отправлен оффер, оклад ' + h.salary);
+      log(r, by, at, 'Отправил оффер: ' + h.name + ', оклад ' + h.salary, '', 'offer');
+    },
+    offerAccepted(S, by, at, p){
+      const r = find(S, p.id), h = hire(r, p.hid);
+      h.stage = 'docs'; h.stageAt = at; h.lists.docs = makeList('docs');
+      ctl(cand(r, h.cid), at, by, 'Принял оффер');
+      log(r, by, at, h.name + ' принял оффер', '', 'offerok');
+    },
+    offerDeclined(S, by, at, p){
+      const r = find(S, p.id), h = hire(r, p.hid), c = cand(r, h.cid);
+      h.stage = 'dropped'; h.stageAt = at; h.dropFrom = 'offer';
+      c.stage = 'rejected'; c.reject = {at, by, from:'offer', reason:'Отказался от оффера', comment:p.comment || ''};
+      ctl(c, at, by, 'Отказался от оффера');
+      log(r, by, at, h.name + ' отказался от оффера', p.comment, 'declined');
     },
     /* исполнитель отмечает оставшиеся пункты своей части разом: «Отметить все» */
     checkGroup(S, by, at, p){
@@ -341,8 +477,8 @@ const Model = (function(){
     decide(S, by, at, p){
       const r = find(S, p.id), h = hire(r, p.hid), c = cand(r, h.cid);
       h.decision = {verdict:p.verdict, comment:p.comment, at, by, until:p.until || null};
-      if(p.verdict === 'hire'){ h.stage = 'docs'; h.stageAt = at; h.lists.docs = makeList('docs'); ctl(c, at, by, 'Решение по стажировке: нанимаем'); log(r, by, at, 'Решение по стажировке: нанимаем ' + h.name, p.comment, 'decide'); }
-      if(p.verdict === 'drop'){ h.stage = 'dropped'; h.stageAt = at; c.stage = 'rejected'; c.reject = {at, by, from:'intern', reason:'Отказ после стажировки', comment:p.comment}; ctl(c, at, by, 'Отказ после стажировки'); log(r, by, at, 'Не продолжаем с ' + h.name + ' после стажировки', p.comment, 'decide'); }
+      if(p.verdict === 'hire'){ h.stage = 'hrok'; h.stageAt = at; ctl(c, at, by, 'Решение по стажировке: нанимаем'); log(r, by, at, 'Решение по стажировке: нанимаем ' + h.name, p.comment, 'decide'); }
+      if(p.verdict === 'drop'){ h.stage = 'dropped'; h.stageAt = at; h.dropFrom = 'intern'; c.stage = 'rejected'; c.reject = {at, by, from:'intern', reason:'Отказ после стажировки', comment:p.comment}; ctl(c, at, by, 'Отказ после стажировки'); log(r, by, at, 'Не продолжаем с ' + h.name + ' после стажировки', p.comment, 'decide'); }
       if(p.verdict === 'extend'){ h.decideBy = p.until; ctl(c, at, by, 'Стажировка продлена до ' + fmtDate(p.until)); log(r, by, at, 'Продлил стажировку ' + h.name + ' до ' + fmtDate(p.until), p.comment, 'decide'); }
     },
     registered(S, by, at, p){
@@ -363,11 +499,105 @@ const Model = (function(){
   };
   function act(S, by, type, p, at){ return A[type](S, by, at == null ? Date.now() : at, p || {}); }
 
+  /* ---------- кто что может ----------
+     Те же условия, при которых экраны показывают кнопку. Сервер проверяет каждое действие этим же
+     кодом, поэтому правило меняется в одном месте. null — можно, иначе — почему нельзя. */
+  const text = x => typeof x === 'string' && x.trim() !== '';
+  const isTime = x => typeof x === 'number' && isFinite(x);
+  /* ссылки из полей попадают в href: только http(s), иначе javascript: выполнился бы у того, кто нажмёт */
+  const webLink = x => !x || /^https?:\/\/[^\s]+$/i.test(x);
+  /* файл на сервере лежит по пути hr/<uuid>/<имя>, его выдаёт загрузка */
+  const okFile = f => !!f && typeof f === 'object' && text(f.name) && (f.path == null || /^hr\/[0-9a-f-]{36}\/[^/]+$/.test(f.path));
+  const okFields = (fl, send) => {
+    if(!fl || typeof fl !== 'object') return 'Нет полей заявки';
+    if(fl.files != null && (!Array.isArray(fl.files) || !fl.files.every(okFile))) return 'Файлы заявки повреждены';
+    const m = PEOPLE[fl.manager];
+    if((send || fl.manager) && !(m && (m.role === 'manager' || m.role === 'hrd'))) return 'Выберите руководителя';
+    return null;
+  };
+  const liveCand = c => c.stage !== 'rejected' && c.stage !== 'accepted';
+  const liveHire = h => h.stage !== 'dropped' && h.stage !== 'done';
+  const editor = (r, v) => perms(r, v).editCandidates;
+  const NEED_C = ['screened','invite','schedule','interviewed','move','addFiles','feedback','reject','accepted'];
+  const NEED_H = ['hrConfirm','offer','offerAccepted','offerDeclined','check','checkGroup','started','decide','registered','fot'];
+  const returnText = p => text(p.comment) || Object.values(p.notes || {}).some(text);
+  const RULES = {
+    update:({r, v, p}) => (r.initiator === v || r.manager === v) && ['draft','returned'].includes(r.status) ? okFields(p.fields, p.send) : 'Заявку сейчас нельзя изменить',
+    hrAccept:({r, hrd}) => hrd && r.status === 'hr' ? null : 'Заявка не на проверке HR',
+    hrReturn:({r, hrd, p}) => !(hrd && r.status === 'hr') ? 'Заявка не на проверке HR' : returnText(p) ? null : 'Напишите, что исправить',
+    finApprove:({r, role}) => role === 'finance' && r.status === 'finance' ? null : 'Заявка не на согласовании Finance',
+    finReturn:({r, role, p}) => !(role === 'finance' && r.status === 'finance') ? 'Заявка не на согласовании Finance' : returnText(p) ? null : 'Напишите, что исправить',
+    finReject:({r, role, p}) => !(role === 'finance' && r.status === 'finance') ? 'Заявка не на согласовании Finance' : text(p.comment) ? null : 'Напишите причину',
+    ceoApprove:({r, role}) => role === 'ceo' && r.status === 'ceo' ? null : 'Заявка не на решении CEO',
+    ceoReject:({r, role, p}) => !(role === 'ceo' && r.status === 'ceo') ? 'Заявка не на решении CEO' : text(p.comment) ? null : 'Напишите причину',
+    assign:({r, hrd, p}) => !(hrd && r.status === 'assign') ? 'Назначить рекрутера сейчас нельзя'
+      : !(PEOPLE[p.recruiter] && PEOPLE[p.recruiter].role === 'recruiter') ? 'Выберите рекрутера' : null,
+    /* ещё одна площадка после первой публикации — тоже можно (так собраны демо-заявки) */
+    publish:({r, v, p}) => !(r.recruiter === v && ['assigned','inwork','published'].includes(r.status)) ? 'Опубликовать вакансию сейчас нельзя'
+      : !text(p.platform) ? 'Укажите площадку' : !isTime(p.date) ? 'Укажите дату публикации' : !webLink(p.link) ? 'Ссылка должна начинаться с http:// или https://' : null,
+    addCandidate:({r, v, p}) => !(editor(r, v) && r.status === 'published') ? 'Добавлять кандидатов сейчас нельзя'
+      : !(p.fields && text(p.fields.name)) ? 'Укажите ФИО' : !webLink(p.fields.resume) ? 'Ссылка на резюме должна начинаться с http:// или https://'
+      : p.fields.files != null && !(Array.isArray(p.fields.files) && p.fields.files.every(okFile)) ? 'Файлы кандидата повреждены' : null,
+    screened:({r, c, v, p}) => !(r.recruiter === v && ivStage(c) === 'hr' && hrStep(c) === 'call') ? 'Доложить HR сейчас нельзя' : text(p.text) ? null : 'Напишите итоги звонка',
+    invite:({c, hrd}) => hrd && ivStage(c) === 'hr' && hrStep(c) === 'review' ? null : 'Пригласить на интервью сейчас нельзя',
+    schedule:({r, c, v, p}) => {
+      if(!(p.kind === 'hr' || p.kind === 'mgr') || ivStage(c) !== p.kind) return 'Назначить интервью сейчас нельзя';
+      if(!isTime(p.when)) return 'Укажите день и время интервью';
+      if(p.kind === 'hr') return r.recruiter === v && ['invite','set'].includes(hrStep(c)) ? null : 'Интервью HR назначает рекрутер';
+      return r.manager === v && ivState(c, 'mgr') !== 'done' ? null : 'Интервью назначает руководитель';
+    },
+    interviewed:({r, c, v, p, hrd}) => (p.kind === 'hr' ? hrd : p.kind === 'mgr' && r.manager === v) && ivStage(c) === p.kind && ivState(c, p.kind) === 'set' ? null : 'Отметить интервью сейчас нельзя',
+    move:({c, hrd, p}) => hrd && p.to === 'mgr' && ivStage(c) === 'hr' && ivState(c, 'hr') === 'done' ? null : 'Передать руководителю сейчас нельзя',
+    addFiles:({r, c, v, p}) => !(editor(r, v) && canAttach(r, c)) ? 'Прикладывать файлы сейчас нельзя'
+      : Array.isArray(p.files) && p.files.length && p.files.every(okFile) ? null : 'Нет файлов',
+    feedback:({r, c, v, p}) => !(r.manager === v && c.stage === 'mgr') ? 'Ответить по кандидату сейчас нельзя'
+      : p.verdict === 'approve' ? (ivState(c, 'mgr') === 'done' ? null : 'Сначала проведите интервью')
+      : p.verdict === 'reject' ? (text(p.comment) ? null : 'Напишите причину отказа') : 'Выберите решение',
+    reject:({r, c, v, p}) => !(editor(r, v) && c.stage !== 'mgr') ? 'Отказать кандидату сейчас нельзя' : REJECT.includes(p.reason) ? null : 'Выберите причину отказа',
+    accepted:({r, c, v, p}) => !(editor(r, v) && c.stage === 'approved') ? 'Отметить согласие сейчас нельзя' : p.start == null || isTime(p.start) ? null : 'Укажите дату выхода',
+    hrConfirm:({h, hrd, p}) => !(hrd && h.stage === 'hrok') ? 'Подтвердить найм сейчас нельзя' : p.yes || text(p.comment) ? null : 'Напишите причину',
+    offer:({r, h, v, p}) => !(r.recruiter === v && h.stage === 'offer') ? 'Отправить оффер сейчас нельзя' : text(p.salary) ? null : 'Укажите оклад, на который согласились',
+    offerAccepted:({r, h, v}) => r.recruiter === v && h.stage === 'offered' ? null : 'Отметить ответ на оффер сейчас нельзя',
+    offerDeclined:({r, h, v}) => r.recruiter === v && h.stage === 'offered' ? null : 'Отметить ответ на оффер сейчас нельзя',
+    check:({r, h, v, p}) => { const it = h.lists[p.list] && h.lists[p.list][p.i];
+      return !it ? 'Нет такого пункта' : liveHire(h) && canCheck(it, r, v) ? null : 'Этот пункт отмечает другой человек'; },
+    checkGroup:({r, h, v, p}) => h.lists[p.list] && WHO[p.who] && liveHire(h) && canCheck({who:p.who}, r, v) ? null : 'Эту часть отмечает другой человек',
+    started:({r, h, v}) => !(r.recruiter === v && h.stage === 'prep') ? 'Отметить выход сейчас нельзя' : listLeft(h.lists.prep) ? 'Сначала подготовьте выход' : null,
+    decide:({r, h, v, p}) => !(r.manager === v && h.stage === 'intern') ? 'Решать по стажировке сейчас нельзя'
+      : !['hire','drop','extend'].includes(p.verdict) ? 'Выберите решение' : !text(p.comment) ? 'Комментарий обязателен'
+      : p.verdict === 'extend' && !isTime(p.until) ? 'Укажите новый срок' : null,
+    registered:({r, h, v}) => !(r.recruiter === v && h.stage === 'docs') ? 'Отметить оформление сейчас нельзя' : listLeft(h.lists.docs) ? 'Сначала заполните документы' : null,
+    fot:({h, role}) => role === 'finance' && (h.stage === 'fot' || h.stage === 'fin') ? null : 'Учесть в ФОТ сейчас нельзя',
+    cancel:({r, v, p}) => !perms(r, v).cancel ? 'Отменить заявку нельзя' : CANCEL.includes(p.reason) ? null : 'Выберите причину отмены'
+  };
+  function check(S, v, type, p){
+    const me = PEOPLE[v];
+    if(!me || me.role === 'former') return 'Вы не участник воронки';
+    if(!p || typeof p !== 'object') return 'Нет данных действия';
+    if(NEW_ID[type] && p.newId != null && (typeof p.newId !== 'string' || !new RegExp('^' + NEW_ID[type] + '[a-z0-9]{6,24}$').test(p.newId) || takenId(S, p.newId))) return 'Неверный id новой записи';
+    const role = me.role, hrd = role === 'hrd';
+    if(type === 'create') return role === 'manager' || hrd ? okFields(p.fields, p.send) : 'Создавать заявки могут руководитель и HR';
+    const rule = RULES[type];
+    if(!rule) return 'Неизвестное действие';
+    const r = S.requests.find(x => x.id === p.id);
+    if(!r || !visible(r, v)) return 'Заявка не найдена';
+    const c = NEED_C.includes(type) ? cand(r, p.cid) : null, h = NEED_H.includes(type) ? hire(r, p.hid) : null;
+    if(NEED_C.includes(type) && !c) return 'Кандидат не найден';
+    if(NEED_H.includes(type) && !h) return 'Сотрудник не найден';
+    /* подбор и выход идут, пока заявка в работе: после отмены и закрытия менять нечего */
+    if((c || h) && r.status !== 'published') return 'Подбор по заявке остановлен';
+    if(c && !liveCand(c) && type !== 'accepted') return 'По кандидату уже есть решение';
+    return rule({r, c, h, p, v, role, hrd});
+  }
+
   /* ---------- форматирование ---------- */
   function plural(n, one, few, many){ const a = Math.abs(n) % 100, b = a % 10; return a > 10 && a < 20 ? many : b === 1 ? one : b >= 2 && b <= 4 ? few : many; }
   const MON = ['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
-  function fmtDate(t, withYear){ if(!t) return ''; const d = new Date(t); return d.getDate() + ' ' + MON[d.getMonth()] + (withYear && d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : ''); }
-  function fmtTime(t){ const d = new Date(t); return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); }
+  /* время компании — Алматы, UTC+5. Подписи вроде «Интервью назначено на 9 окт, 11:00» пишет и сервер,
+     а у него часовой пояс UTC: от пояса машины время в истории зависеть не должно */
+  const TZ = 5 * H, local = t => new Date(t + TZ);
+  function fmtDate(t, withYear){ if(!t) return ''; const d = local(t); return d.getUTCDate() + ' ' + MON[d.getUTCMonth()] + (withYear && d.getUTCFullYear() !== local(Date.now()).getUTCFullYear() ? ' ' + d.getUTCFullYear() : ''); }
+  function fmtTime(t){ const d = local(t); return String(d.getUTCHours()).padStart(2,'0') + ':' + String(d.getUTCMinutes()).padStart(2,'0'); }
   function fmtDateTime(t){ return fmtDate(t) + ', ' + fmtTime(t); }
   function ago(t, now){
     const m = Math.max(0, now - t) / 60e3;
@@ -383,7 +613,7 @@ const Model = (function(){
   /* ---------- демонстрационные данные ----------
      Собраны теми же действиями, что и в работе: у каждой заявки настоящая история. */
   function seed(now){
-    const S = {requests:[], v:4};
+    const S = {requests:[], v:8};
     const t = h => now - h * H, day = (d, hh) => { const x = new Date(now + d * D); x.setHours(hh ?? 10, 0, 0, 0); return x.getTime(); };
     /* события — в рабочее время: сутки сжимаются в 9:00–19:00, порядок событий сохраняется */
     const work = x => { const d = new Date(x), hr = d.getHours() + d.getMinutes() / 60, m = new Date(x); m.setHours(0, 0, 0, 0);
@@ -458,6 +688,32 @@ const Model = (function(){
       return id;
     };
     const addC = (id, by, c, h) => go(by, 'addCandidate', {id, fields:c}, h);
+    /* интервью: назначили на время hWhen (часы назад; будущее — через day), отметили проведённым в hDone */
+    const iv = (id, cid, kind, by, hSet, when, hDone) => { go(by, 'schedule', {id, cid, kind, when}, hSet); if(hDone != null) go(by, 'interviewed', {id, cid, kind}, hDone); };
+    const SCREEN = 'Созвонились: вакансия актуальна, готов выйти в ближайшие две недели, ожидания в пределах заявки.';
+    const recOf = id => S.requests.find(x => x.id === id).recruiter;
+    /* до интервью HR: звонок рекрутера, решение HR, дату назначает рекрутер, интервью проводит HR */
+    const toHr = (id, cid, h0, k, done) => {
+      const rec = recOf(id);
+      go(rec, 'screened', {id, cid, text:SCREEN}, h0);
+      go(HRD, 'invite', {id, cid}, h0 - k);
+      go(rec, 'schedule', {id, cid, kind:'hr', when:work(t(h0 - 3 * k))}, h0 - 2 * k);
+      if(done) go(HRD, 'interviewed', {id, cid, kind:'hr'}, h0 - 3.5 * k);
+    };
+    /* весь путь до решения руководителя. h0 — звонок, h1 — решение руководителя */
+    const pass = (id, cid, mgr, h0, h1) => {
+      const k = (h0 - h1) / 10;
+      toHr(id, cid, h0, k, true);
+      go(HRD, 'move', {id, cid, to:'mgr'}, h0 - 4 * k);
+      iv(id, cid, 'mgr', mgr, h0 - 5 * k, work(t(h0 - 7 * k)), h0 - 8 * k);
+    };
+    /* после «Нанимаем»: HR подтверждает, рекрутер отправляет оффер с итоговым окладом, кандидат принимает */
+    const offerPath = (id, h, salary, h0) => {
+      go(HRD, 'hrConfirm', {id, hid:h.id, yes:true}, h0);
+      go(recOf(id), 'offer', {id, hid:h.id, salary}, h0 - 4);
+      go(recOf(id), 'offerAccepted', {id, hid:h.id}, h0 - 20);
+    };
+    const testFile = (id, cid, name, h) => go(recOf(id), 'addFiles', {id, cid, files:[{name, size:240000, kind:'Результат тестового'}]}, h);
     const C = (name, position, source, expect, extra) => Object.assign({name, position, source, expect, phone:phone(name), tg:'@' + translit(name.split(' ')[0]), email:''}, extra || {});
 
     /* закрытые */
@@ -468,14 +724,14 @@ const Model = (function(){
 
     const video = approve('video', 48 + 34 * 24, 6, {hrAt:48 + 33 * 24, finAt:48 + 32 * 24, ceoAt:48 + 31 * 24 + 5, rec:'ali', deadline:day(-10), assignAt:48 + 31 * 24, takeAt:48 + 30 * 24 + 20, pubAt:48 + 30 * 24});
     let c1 = addC(video, 'ali', C('Тимур Бекмуханов','Видеограф, фриланс','Instagram','400 000 ₸'), 48 + 28 * 24);
-    go('ali','move',{id:video,cid:c1,to:'hr'},48+27*24); go('ali','move',{id:video,cid:c1,to:'mgr'},48+25*24);
+    pass(video, c1, 'dan', 48+27*24, 48+24*24);
     go('dan','feedback',{id:video,cid:c1,verdict:'approve',comment:'Хорошее портфолио, берём.'},48+24*24);
-    go('ali','offer',{id:video,cid:c1,salary:'380 000 ₸',start:t(48+20*24)},48+23*24);
     go('ali','accepted',{id:video,cid:c1,start:t(48+20*24)},48+22*24);
     let vh = S.requests.find(r => r.id === video).hires[0];
     checkAll(video, vh, 'prep', 48 + 21 * 24, 'ali');
     go('ali','started',{id:video,hid:vh.id},48+20*24); checkAll(video, vh, 'day1', 48 + 20 * 24, 'ali');
     go('dan','decide',{id:video,hid:vh.id,verdict:'hire',comment:'Справился, оставляем.'},48+18*24);
+    offerPath(video, vh, '380 000 ₸', 48+17*24);
     checkAll(video, vh, 'docs', 48 + 10 * 24, 'ali');
     go('ali','registered',{id:video,hid:vh.id},48+5*24);
     go(FIN,'fot',{id:video,hid:vh.id,comment:'Учтён с 1 октября.'},48);
@@ -483,42 +739,42 @@ const Model = (function(){
     /* оформление */
     const office = approve('office', 900, 6, {hrAt:880, finAt:860, ceoAt:840, rec:'sam', deadline:day(-5), assignAt:835, takeAt:830, pubAt:828});
     c1 = addC(office, 'sam', C('Жанна Мухтарова','Администратор в клинике','HH','300 000 ₸'), 800);
-    go('sam','move',{id:office,cid:c1,to:'hr'},790); go('sam','move',{id:office,cid:c1,to:'mgr'},770);
+    pass(office, c1, 'gul', 790, 760);
     go('gul','feedback',{id:office,cid:c1,verdict:'approve',comment:''},760);
-    go('sam','offer',{id:office,cid:c1,salary:'280 000 ₸',start:day(-14)},750); go('sam','accepted',{id:office,cid:c1,start:day(-14)},740);
+    go('sam','accepted',{id:office,cid:c1,start:day(-14)},740);
     let oh = S.requests.find(r => r.id === office).hires[0];
     checkAll(office, oh, 'prep', 400, 'sam'); go('sam','started',{id:office,hid:oh.id},14*24); checkAll(office, oh, 'day1', 14*24 - 2, 'sam');
     go('gul','decide',{id:office,hid:oh.id,verdict:'hire',comment:'Всё хорошо.'},11*24);
+    offerPath(office, oh, '290 000 ₸', 10*24 + 20);
     checkAll(office, oh, 'docs', 3*24, 'sam'); go('sam','registered',{id:office,hid:oh.id},20);
 
     const analyst = approve('analyst', 1000, 6, {hrAt:990, finAt:960, ceoAt:950, rec:'sam', deadline:day(-2), assignAt:945, takeAt:940, pubAt:936});
     c1 = addC(analyst, 'sam', C('Ильяс Кенжебаев','Аналитик в банке','LinkedIn','700 000 ₸'), 900);
-    go('sam','move',{id:analyst,cid:c1,to:'hr'},880); go('sam','move',{id:analyst,cid:c1,to:'mgr'},800);
+    pass(analyst, c1, 'erl', 880, 790);
     go('erl','feedback',{id:analyst,cid:c1,verdict:'approve',comment:'Сильный кейс на интервью.'},790);
-    go('sam','offer',{id:analyst,cid:c1,salary:'650 000 ₸',start:day(-12)},780); go('sam','accepted',{id:analyst,cid:c1,start:day(-12)},770);
+    go('sam','accepted',{id:analyst,cid:c1,start:day(-12)},770);
     let ah = S.requests.find(r => r.id === analyst).hires[0];
     checkAll(analyst, ah, 'prep', 300, 'sam'); go('sam','started',{id:analyst,hid:ah.id},12*24); checkAll(analyst, ah, 'day1', 12*24 - 3, 'sam');
-    go('erl','decide',{id:analyst,hid:ah.id,verdict:'hire',comment:'Берём.'},9*24);
-    checkSome(analyst, ah, 'docs', 5, 30, 'sam');
+    go('erl','decide',{id:analyst,hid:ah.id,verdict:'hire',comment:'Берём.'},20);
 
     /* выход */
     const producer = approve('producer', 700, 6, {hrAt:690, finAt:670, ceoAt:660, rec:'ali', deadline:day(-1), assignAt:655, takeAt:650, pubAt:648, pub2:640});
     c1 = addC(producer, 'ali', C('Аружан Тулегенова','Продюсер в агентстве','Рекомендации','750 000 ₸'), 600);
     const c2 = addC(producer, 'ali', C('Сергей Волков','Линейный продюсер','HH','800 000 ₸'), 590);
-    go('ali','move',{id:producer,cid:c1,to:'hr'},580); go('ali','move',{id:producer,cid:c1,to:'mgr'},560);
+    pass(producer, c1, 'dan', 580, 540);
     go('ali','reject',{id:producer,cid:c2,reason:'Зарплатные ожидания',comment:'Ожидания выше вилки на 15%.'},570);
     go('dan','feedback',{id:producer,cid:c1,verdict:'approve',comment:'Опыт подходит.'},540);
-    go('ali','offer',{id:producer,cid:c1,salary:'700 000 ₸',start:t(50)},500); go('ali','accepted',{id:producer,cid:c1,start:t(50)},480);
+    go('ali','accepted',{id:producer,cid:c1,start:t(50)},480);
     let ph = S.requests.find(r => r.id === producer).hires[0];
     checkAll(producer, ph, 'prep', 70, 'ali'); go('ali','started',{id:producer,hid:ph.id},50); checkSome(producer, ph, 'day1', 10, 46, 'ali');
 
     const copy = approve('copy', 500, 6, {hrAt:490, finAt:470, ceoAt:460, rec:'ali', deadline:day(5), assignAt:455, takeAt:452, pubAt:450});
     c1 = addC(copy, 'ali', C('Динара Оразбаева','Редактор в медиа','Telegram','320 000 ₸'), 400);
     const c3 = addC(copy, 'ali', C('Максат Нургалиев','Копирайтер, фриланс','HH','350 000 ₸'), 395);
-    go('ali','move',{id:copy,cid:c1,to:'hr'},380); go('ali','move',{id:copy,cid:c1,to:'mgr'},300);
-    go('ali','move',{id:copy,cid:c3,to:'hr'},378); go('ali','reject',{id:copy,cid:c3,reason:'Не прошёл интервью',comment:''},360);
+    pass(copy, c1, 'mad', 380, 280);
+    toHr(copy, c3, 378, 3, true); go(HRD,'reject',{id:copy,cid:c3,reason:'Не прошёл интервью',comment:''},360);
     go('mad','feedback',{id:copy,cid:c1,verdict:'approve',comment:'Тексты живые, берём.'},280);
-    go('ali','offer',{id:copy,cid:c1,salary:'320 000 ₸',start:day(2)},100); go('ali','accepted',{id:copy,cid:c1,start:day(2)},60);
+    go('ali','accepted',{id:copy,cid:c1,start:day(2)},60);
     let ch = S.requests.find(r => r.id === copy).hires[0];
     checkSome(copy, ch, 'prep', 9, 30, 'ali');
 
@@ -528,33 +784,39 @@ const Model = (function(){
     const o2 = addC(operator, 'ali', C('Елена Пак','Оператор, фриланс','Instagram','600 000 ₸'), 280);
     const o3 = addC(operator, 'ali', C('Бауыржан Сейткали','Ассистент оператора','HH','450 000 ₸'), 120);
     const o4 = addC(operator, 'ali', C('Ксения Ли','Оператор в продакшне','Рекомендации','620 000 ₸'), 20);
-    go('ali','move',{id:operator,cid:o1,to:'hr'},270); go('ali','move',{id:operator,cid:o1,to:'mgr'},250);
+    pass(operator, o1, 'dan', 270, 240);
     go('dan','feedback',{id:operator,cid:o1,verdict:'approve',comment:'Сильный шоурил.'},240);
-    go('ali','offer',{id:operator,cid:o1,salary:'600 000 ₸',start:day(3)},200); go('ali','accepted',{id:operator,cid:o1,start:day(3)},180);
-    go('ali','move',{id:operator,cid:o2,to:'hr'},260); go('ali','reject',{id:operator,cid:o2,reason:'Отказался сам',comment:'Ушла на другой проект.'},230);
-    go('ali','move',{id:operator,cid:o3,to:'hr'},100); go('ali','reject',{id:operator,cid:o3,reason:'Не подходит по опыту',comment:''},90);
-    go('ali','move',{id:operator,cid:o4,to:'hr',when:'вт 11:00'},6);
+    go('ali','accepted',{id:operator,cid:o1,start:day(3)},180);
+    toHr(operator, o2, 258, 5, false); go('ali','reject',{id:operator,cid:o2,reason:'Отказался сам',comment:'Ушла на другой проект.'},230);
+    go('ali','reject',{id:operator,cid:o3,reason:'Не подходит по опыту',comment:''},90);
+    go('ali', 'screened', {id:operator, cid:o4, text:SCREEN}, 5); go(HRD, 'invite', {id:operator, cid:o4}, 4); go('ali', 'schedule', {id:operator, cid:o4, kind:'hr', when:day(1, 11)}, 3);
     let oph = S.requests.find(r => r.id === operator).hires[0];
     checkSome(operator, oph, 'prep', 4, 100, 'ali');
 
     const motion = approve('motion', 260, 6, {hrAt:250, finAt:240, ceoAt:230, rec:'ali', deadline:day(6), assignAt:226, takeAt:224, pubAt:220, pub2:210});
+    /* кандидаты на всех шагах до решения руководителя: видно, чего ждёт каждый */
     const m = [
-      ['Камила Абдрахманова','Моушн-дизайнер в студии','HH','600 000 ₸', 190, ['hr',170,'mgr',30]],
-      ['Арсен Туяков','Моушн-дизайнер, фриланс','Telegram','500 000 ₸', 180, ['hr',160,'mgr',6]],
-      ['Асем Касенова','Дизайнер-аниматор','Instagram','450 000 ₸', 140, ['hr',100]],
-      ['Алихан Жаксылыков','3D-аниматор','HH','700 000 ₸', 90, ['hr',30]],
-      ['Мария Ким','Моушн-дизайнер в агентстве','LinkedIn','550 000 ₸', 60, ['hr',20]],
-      ['Нурлан Абенов','Junior моушн-дизайнер','HH','350 000 ₸', 12, []],
-      ['Айым Сарсенова','Графический дизайнер','Telegram','400 000 ₸', 8, []],
-      ['Дмитрий Ан','Видеомонтажёр','HH','450 000 ₸', 3, []],
-      ['Гаухар Бейсенова','Моушн-дизайнер','Рекомендации','520 000 ₸', 150, ['hr',130,'reject',120]]
+      ['Камила Абдрахманова','Моушн-дизайнер в студии','HH','600 000 ₸', 190, 'mgrSet'],
+      ['Арсен Туяков','Моушн-дизайнер, фриланс','Telegram','500 000 ₸', 180, 'mgrDone'],
+      ['Асем Касенова','Дизайнер-аниматор','Instagram','450 000 ₸', 140, 'hrDone'],
+      ['Алихан Жаксылыков','3D-аниматор','HH','700 000 ₸', 90, 'hrSet'],
+      ['Мария Ким','Моушн-дизайнер в агентстве','LinkedIn','550 000 ₸', 60, 'hrSet2'],
+      ['Нурлан Абенов','Junior моушн-дизайнер','HH','350 000 ₸', 30, 'invite'],
+      ['Айым Сарсенова','Графический дизайнер','Telegram','400 000 ₸', 20, 'review'],
+      ['Дмитрий Ан','Видеомонтажёр','HH','450 000 ₸', 3, ''],
+      ['Гаухар Бейсенова','Моушн-дизайнер','Рекомендации','520 000 ₸', 150, 'hrReject']
     ];
-    m.forEach(([n, pos, src, exp, h, path]) => {
+    m.forEach(([n, pos, src, exp, h, st]) => {
       const cid = addC(motion, 'ali', C(n, pos, src, exp, {experience:'3 года', comment:'', resume:'https://hh.kz/resume/' + translit(n).slice(0,8)}), h);
-      for(let i = 0; i < path.length; i += 2){
-        if(path[i] === 'reject') go('ali','reject',{id:motion,cid,reason:'Не прошёл интервью',comment:'Слабое портфолио по моушну.'},path[i+1]);
-        else go('ali','move',{id:motion,cid,to:path[i],when:path[i] === 'hr' ? '' : ''},path[i+1]);
-      }
+      if(st === 'review'){ testFile(motion, cid, 'Тестовое — анимация логотипа.pdf', h - 4); go('ali', 'screened', {id:motion, cid, text:SCREEN}, h - 6); }
+      if(st === 'invite'){ go('ali', 'screened', {id:motion, cid, text:SCREEN}, h - 4); go(HRD, 'invite', {id:motion, cid}, h - 8); }
+      if(st === 'hrSet'){ toHr(motion, cid, h - 5, 4, false); go('ali', 'schedule', {id:motion, cid, kind:'hr', when:day(1, 11)}, h - 20); }
+      if(st === 'hrSet2'){ toHr(motion, cid, h - 5, 4, false); go('ali', 'schedule', {id:motion, cid, kind:'hr', when:day(2, 15)}, h - 20); }
+      if(st === 'hrDone') toHr(motion, cid, h - 5, 6, true);
+      if(st === 'hrReject'){ toHr(motion, cid, h - 5, 3, true); go(HRD,'reject',{id:motion,cid,reason:'Не прошёл интервью',comment:'Слабое портфолио по моушну.'},h - 30); }
+      if(st === 'mgrSet' || st === 'mgrDone'){ toHr(motion, cid, h - 5, 4, true); go(HRD, 'move', {id:motion, cid, to:'mgr'}, h - 25); }
+      if(st === 'mgrSet') iv(motion, cid, 'mgr', 'dan', h - 40, day(1, 15));
+      if(st === 'mgrDone'){ testFile(motion, cid, 'Тестовое — титры для ролика.pdf', h - 50); iv(motion, cid, 'mgr', 'dan', h - 60, work(t(h - 80)), h - 90); }
     });
 
     const front = approve('front', 160, 4, {hrAt:150, finAt:120, ceoAt:96, rec:'sam', deadline:day(30), assignAt:40, fin:'В пределах годового плана по ФОТ разработки.'});
@@ -580,25 +842,7 @@ const Model = (function(){
     return s.toLowerCase().split('').map(ch => m[ch] ?? ch).join('').replace(/[^a-z0-9]/g, '');
   }
 
-  return {H, D, ROLE, PEOPLE, HRD, FIN, CEO, RECRUITERS, SLA, DEPTS, REASONS, FORMATS, EMPLOYMENT, PRIORITY, PLATFORMS, SOURCES, REJECT, CANCEL,
-    STAGES, stageGroup, isRange, FIELD_NAMES, LISTS, listLeft, COLUMNS, phase, progress, statusText, turns, late, mineTurn, visible, perms, canCheck, WHO,
+  return {H, D, ROLE, PEOPLE, get HRD(){ return HRD; }, get FIN(){ return FIN; }, get CEO(){ return CEO; }, RECRUITERS, configure, check, newId, NEW_ID, SLA, DEPTS, REASONS, FORMATS, EMPLOYMENT, PRIORITY, PLATFORMS, SOURCES, REJECT, CANCEL,
+    STAGES, stageGroup, isRange, IV_NAME, ivStage, ivState, hrStep, candNow, TEST_KINDS, testFiles, canAttach, FIELD_NAMES, LISTS, listLeft, COLUMNS, phase, progress, statusText, turns, late, mineTurn, visible, perms, canCheck, WHO,
     activeHires, openHires, act, seed, plural, fmtDate, fmtTime, fmtDateTime, ago, short, days};
-})();
-
-/* Хранилище: состояние в браузере, подписка экранов на изменения. */
-const Store = (function(){
-  const KEY = 'hr-funnel-v1', VKEY = 'hr-funnel-viewer';
-  let state = null, viewer = 'dan', subs = new Set(), ver = 0, kind = 'init';
-  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if(s && s.v === 4) state = s; } catch(e) {}
-  if(!state) state = Model.seed(Date.now());
-  try { const v = localStorage.getItem(VKEY); if(v && Model.PEOPLE[v]) viewer = v; } catch(e) {}
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e) {} };
-  const emit = k => { kind = k; ver++; subs.forEach(f => f()); };
-  return {
-    get: () => state, viewer: () => viewer, version: () => ver, kind: () => kind,
-    subscribe(f){ subs.add(f); return () => subs.delete(f); },
-    setViewer(v){ viewer = v; try { localStorage.setItem(VKEY, v); } catch(e) {} emit('viewer'); },
-    dispatch(type, p){ const out = Model.act(state, viewer, type, p); save(); emit('act'); return out; },
-    reset(){ state = Model.seed(Date.now()); save(); emit('reset'); }
-  };
 })();
