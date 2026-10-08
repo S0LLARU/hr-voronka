@@ -1,5 +1,7 @@
-/* Приложение: верхняя полоса, доска заявок и панель справа. Адрес отражает, что открыто:
-   #/r/<заявка>, #/r/<заявка>/c/<кандидат>, #/new — ссылку можно отправить, назад работает. */
+/* Приложение: меню слева, полоса сверху, под ней доска. Заявка, кандидат и форма открываются
+   модальным окном поверх доски, поэтому после решения видно, как карточка переезжает.
+   Адрес отражает, что открыто: #/r/<заявка>, #/r/<заявка>/c/<кандидат>, #/r/<заявка>/add,
+   #/r/<заявка>/edit, #/new — ссылку можно отправить, назад работает. */
 'use strict';
 
 function parse(h){
@@ -9,6 +11,7 @@ function parse(h){
     if(p[2] === 'edit') return {id:p[1], form:'edit'};
     if(p[2] === 'c' && p[3]) return {id:p[1], view:'cand', cid:p[3]};
     if(p[2] === 'add') return {id:p[1], view:'add'};
+    if(p[2] === 'review') return {id:p[1], view:'main', review:true};
     return {id:p[1], view:'main'};
   }
   return {};
@@ -19,17 +22,14 @@ function useHash(){
   return h;
 }
 
-const GROUPS = [['Руководители', 'manager'], ['HR', 'hrd recruiter'], ['Согласование', 'finance ceo'], ['IT', 'it']];
+/* «Смотрю как» вместо входа: внизу меню, как карточка пользователя */
+const GROUPS = [['Руководители', 'manager'], ['HR', 'hrd recruiter'], ['Согласование', 'finance ceo']];
 function RolePicker(){
   const v = useViewer(), m = useMenu(), [sure, setSure] = useState(false);
   useEffect(() => { if(!m.open) setSure(false); }, [m.open]);
   const me = Model.PEOPLE[v];
-  return html`<div style=${{position:'relative'}}>
-    <button className="who" ref=${m.btn} aria-haspopup="menu" aria-expanded=${m.open} onClick=${() => m.setOpen(!m.open)}>
-      <span><span className="who-n">${me.name}</span><span className="who-r">${Model.ROLE[me.role]}${me.dept ? ', ' + me.dept : ''}</span></span>
-      <${Icon} n="down" s=${14}/>
-    </button>
-    ${m.open && html`<div className="menu" role="menu" aria-label="Смотреть как" ref=${m.box} onKeyDown=${m.onMenuKey} style=${{right:0, top:44}}>
+  return html`<div className="side-foot">
+    ${m.open && html`<div className="menu" role="menu" aria-label="Смотреть как" ref=${m.box} onKeyDown=${m.onMenuKey} style=${{left:0, right:0, bottom:'calc(100% + 6px)'}}>
       ${GROUPS.map(([t, roles]) => html`<${Fragment} key=${t}>
         <div className="menu-sec">${t}</div>
         ${Object.entries(Model.PEOPLE).filter(([, p]) => roles.split(' ').includes(p.role)).map(([id, p]) => html`
@@ -40,76 +40,196 @@ function RolePicker(){
       <button className="menu-item" role="menuitem" onClick=${() => { if(!sure){ setSure(true); return; } Store.reset(); m.setOpen(false); go('#/'); }}>
         <span>${sure ? 'Точно? Ваши изменения пропадут' : 'Вернуть демонстрационные данные'}</span></button>
     </div>`}
+    <button className="who" ref=${m.btn} aria-haspopup="menu" aria-expanded=${m.open} aria-label=${'Смотрю как: ' + me.name} onClick=${() => m.setOpen(!m.open)}>
+      <span className="ava" aria-hidden="true"><${Icon} n="user" s=${17}/></span>
+      <span className="who-t"><span className="who-n">${me.name}</span><span className="who-r">${Model.ROLE[me.role]}${me.dept ? ', ' + me.dept : ''}</span></span>
+      <span className="who-c" aria-hidden="true"><${Icon} n="updown" s=${16}/></span>
+    </button>
+  </div>`;
+}
+
+/* Finance и CEO доска не нужна: у них один экран — свои задачи (решение пользователя) */
+const tasksOnly = v => ['finance', 'ceo'].includes(Model.PEOPLE[v].role);
+function Sidebar({onNav}){
+  const v = useViewer(), t = tasksOnly(v);
+  return html`<nav className="side" aria-label="Разделы">
+    <div className="brand">
+      <span className="brand-i" aria-hidden="true"><${Icon} n="funnel" s=${19}/></span>
+      <span><span className="brand-n">Galamat HR</span><span className="brand-s">Воронка найма</span></span>
+    </div>
+    <div className="nav">
+      <a href="#/" aria-current="page" onClick=${e => { e.preventDefault(); onNav('#/'); }}><${Icon} n=${t ? 'ok' : 'board'} s=${17}/>${t ? 'Мои задачи' : 'Заявки на подбор'}</a>
+    </div>
+    <${RolePicker}/>
+  </nav>`;
+}
+
+/* крошки: путь до открытого; переход проходит через защиту несохранённого */
+function Crumbs({items}){
+  return html`<ol className="crumbs" aria-label="Где вы">
+    ${items.map(([t, h], i) => html`<li key=${i}>
+      ${i > 0 && html`<${Icon} n="chev" s=${14}/>`}
+      ${h ? html`<a href=${h} onClick=${e => { e.preventDefault(); Panel.leave(() => go(h)); }}>${t}</a>` : html`<span className="cur" aria-current="page">${t}</span>`}
+    </li>`)}
+  </ol>`;
+}
+
+function BoardPage({S, v, now, focusId, q}){
+  const visible = S.requests.filter(r => Model.visible(r, v));
+  const ql = q.trim().toLowerCase();
+  const match = r => !ql || [r.title, r.dept, r.project, name(r.manager), name(r.recruiter), ...r.candidates.map(c => c.name)].some(s => s && s.toLowerCase().includes(ql));
+  const list = visible.filter(match);
+  return html`<div className="board-page">
+    <h1 className="sr">Заявки на подбор</h1>
+    ${ql && !list.length ? html`<p className="empty-line">По запросу «${q.trim()}» заявок нет</p>` : null}
+    <${Board} list=${list} v=${v} now=${now} current=${focusId} onOpen=${id => go('#/r/' + id)} version=${Store.version()} q=${q}/>
   </div>`;
 }
 
 function App(){
   const S = useStore(), v = useViewer(), now = useNow(), hash = useHash(), route = parse(hash);
-  const [q, setQ] = useState(''), [onlyMine, setOnlyMine] = useState(false);
   const me = Model.PEOPLE[v];
+  const [side, setSide] = useState(() => { try { return localStorage.getItem('hr-side') !== '0'; } catch(e) { return true; } });
+  const [drawer, setDrawer] = useState(false), [q, setQ] = useState('');
+  /* меню на телефоне выезжает слева, подложка проявляется */
+  useLayoutEffect(() => {
+    if(!drawer || !Anim.on()) return;
+    const sd = document.querySelector('.app.is-drawer .side'), sc = document.querySelector('.app.is-drawer > div > .scrim');
+    if(sd) Anim.done(Motion.animate(sd, {transform:['translateX(-100%)','translateX(0px)']}, {duration:.45, ease:EASE}), sd);
+    if(sc) Motion.animate(sc, {opacity:[0,1]}, {duration:.3});
+  }, [drawer]);
+  const narrow = () => matchMedia('(max-width:900px)').matches;
+  const toggleSide = () => {
+    if(narrow()){ setDrawer(!drawer); return; }
+    const n = !side; setSide(n); try { localStorage.setItem('hr-side', n ? '1' : '0'); } catch(e) {}
+  };
+  const nav = h => { setDrawer(false); Panel.leave(() => go(h)); };
 
-  const visible = S.requests.filter(r => Model.visible(r, v));
-  const ql = q.trim().toLowerCase();
-  const match = r => !ql || [r.title, r.dept, r.project, name(r.manager), name(r.recruiter), ...r.candidates.map(c => c.name)].some(s => s && s.toLowerCase().includes(ql));
-  const mineCount = visible.filter(r => isMine(r, v)).length;
-  const list = visible.filter(r => match(r) && (!onlyMine || isMine(r, v)));
-  useEffect(() => { if(onlyMine && !mineCount) setOnlyMine(false); }, [v]);
-
-  /* ---------- панель ---------- */
-  const open = !!(route.id || route.form);
+  /* ---------- модальное окно поверх доски ---------- */
   const req = route.id ? S.requests.find(r => r.id === route.id && Model.visible(r, v)) : null;
+  const open = !!(route.form === 'new' || req);
   const [shown, setShown] = useState(open ? route : null);
-  const lastId = useRef(null), panel = useRef(null), scrim = useRef(null), main = useRef(null), wasShown = useRef(false);
+  const [slot, setSlot] = useState(null), [strip, setStrip] = useState(null), [foot, setFoot] = useState(null);
+  const lastId = useRef(null), modal = useRef(null), scrim = useRef(null), main = useRef(null), body = useRef(null), wasShown = useRef(false);
   useEffect(() => {
-    if(open && (route.form || req)){ setShown(route); if(route.id) lastId.current = route.id; return; }
+    setDrawer(false);
+    if(open){ setShown(route); if(route.id) lastId.current = route.id; return; }
     if(route.id && !req){ go('#/'); return; }
     if(shown){
-      Anim.panelOut(panel.current, scrim.current).then(() => {
-        setShown(null);
-        const c = lastId.current && document.querySelector('[data-card="' + lastId.current + '"]');
-        if(c) c.focus({preventScroll:false});
-      });
+      Anim.modalOut(modal.current, scrim.current).then(() => setShown(null));
     }
   }, [hash, !!req]);
+  /* окно меняет высоту плавно: сменился шаг формы, появилось новое дело — низ окна доезжает, а не прыгает.
+     Мелкие изменения (раскрытие блока анимируется само) и смену размера экрана не трогаем */
+  useEffect(() => {
+    const m = modal.current; if(!m || !Anim.on()) return;
+    let h = m.offsetHeight, vh = innerHeight, busy = false;
+    const ro = new ResizeObserver(() => {
+      if(busy) return;
+      const n = m.offsetHeight;
+      if(Math.abs(n - h) < 40 || innerHeight !== vh){ h = n; vh = innerHeight; return; }
+      const from = h; h = n; busy = true;
+      Motion.animate(m, {height:[from + 'px', n + 'px']}, {duration:.45, ease:EASE})
+        .then(() => { m.style.height = ''; busy = false; h = m.offsetHeight; }, () => { m.style.height = ''; busy = false; });
+    });
+    ro.observe(m); return () => ro.disconnect();
+  }, [!!shown]);
+  /* содержимое окна появляется блоками по очереди: слева дело, справа история и сведения */
+  const enter = page => {
+    const b = body.current; if(!b) return;
+    const bl = b.querySelectorAll('.mmain > *, .mside > *, .cside > *, .cgrid > .doc');
+    if(bl.length) Anim.stagger(bl, 14, page ? 0 : .08); else if(page) Anim.page(b.firstElementChild);
+  };
   useLayoutEffect(() => {
-    if(shown && !wasShown.current) Anim.panelIn(panel.current, scrim.current);
+    if(shown && !wasShown.current){ Anim.modalIn(modal.current, scrim.current); enter(); }
     wasShown.current = !!shown;
     if(main.current){ if(shown) main.current.setAttribute('inert', ''); else main.current.removeAttribute('inert'); }
+    /* окно закрыто — фокус на карточке заявки, которая была открыта */
+    if(!shown){ const c = lastId.current && document.querySelector('[data-card="' + lastId.current + '"]'); if(c) c.focus({preventScroll:false}); }
   }, [!!shown]);
-  const close = () => Panel.leave(() => go('#/'));
+
+  /* Esc — на уровень выше: из кандидата в заявку, из заявки на доску */
+  const up = !shown ? null : shown.form ? (shown.id ? '#/r/' + shown.id : '#/') : shown.view === 'cand' || shown.view === 'add' ? '#/r/' + shown.id : '#/';
   useEffect(() => {
-    if(!shown) return;
-    const key = e => { if(e.key === 'Escape' && !e.defaultPrevented){ e.preventDefault(); close(); } };
+    if(!up) return;
+    const key = e => { if(e.key === 'Escape' && !e.defaultPrevented && !e.target.closest('.menu')){ e.preventDefault(); Panel.leave(() => go(up)); } };
     addEventListener('keydown', key); return () => removeEventListener('keydown', key);
-  }, [!!shown]);
+  }, [up]);
+  const close = () => Panel.leave(() => go('#/'));
+
+  /* смена содержимого окна: прокрутка наверх, короткое появление, фокус на заголовке */
+  const key = shown ? (shown.form ? 'form' + (shown.id || '') : shown.id + (shown.view || '') + (shown.cid || '')) : '';
+  const prevKey = useRef('');
+  useLayoutEffect(() => {
+    if(!shown || !body.current) return;
+    body.current.scrollTop = 0;
+    if(prevKey.current && prevKey.current !== key) enter(true);
+    prevKey.current = key;
+    const f = modal.current && modal.current.querySelector('[data-autofocus]'); if(f) f.focus({preventScroll:true});
+  }, [key, slot]);
+  useEffect(() => { if(!shown) prevKey.current = ''; }, [!!shown]);
+  /* черта под шапкой и над кнопками — только когда под ними уходит содержимое.
+     Высота окна — в --bh, по ней лист резюме прокручивается сам по себе */
+  useEffect(() => {
+    const b = body.current, m = modal.current; if(!b || !m) return;
+    const f = () => { m.classList.toggle('is-scrolled', b.scrollTop > 0); m.classList.toggle('is-more', b.scrollTop + b.clientHeight < b.scrollHeight - 1); };
+    const all = () => { m.style.setProperty('--bh', b.clientHeight + 'px'); f(); };
+    all(); b.addEventListener('scroll', f);
+    const ro = new ResizeObserver(all); ro.observe(b); if(b.firstElementChild) ro.observe(b.firstElementChild);
+    return () => { b.removeEventListener('scroll', f); ro.disconnect(); };
+  }, [!!shown, key, slot]);
 
   const sr = shown && shown.id ? S.requests.find(r => r.id === shown.id) : null;
-  let content = null;
-  if(shown && shown.form) content = html`<${RequestForm} key=${shown.form + (shown.id || '')} r=${shown.form === 'edit' ? sr : null}
-    onClose=${(id, saved) => { Panel.leave = f => f(); go(id ? '#/r/' + id : '#/'); }}/>`;
-  else if(sr) content = html`<${RequestPanel} key=${sr.id} r=${sr} view=${shown.view} cid=${shown.cid} onClose=${close}/>`;
+  let content = null, wide = true, tall = false, label = '';
+  if(shown && shown.form){
+    const fr = shown.form === 'edit' ? sr : null;
+    wide = false; label = fr ? fr.title : 'Новая заявка';
+    if(shown.form === 'new' || fr) content = html`<${RequestForm} key=${key} r=${fr} onClose=${id => { Panel.leave = f => f(); go(id ? '#/r/' + id : '#/'); }}/>`;
+  } else if(sr){
+    const c = shown.cid && sr.candidates.find(x => x.id === shown.cid);
+    label = shown.view === 'cand' && c ? c.name : sr.title; wide = shown.view !== 'add'; tall = shown.view === 'cand' && !!c;
+    content = html`<${RequestPage} key=${sr.id} r=${sr} view=${shown.view} cid=${shown.cid} startReview=${shown.review}/>`;
+  }
+  const canCreate = me.role === 'manager' || me.role === 'hrd';
 
-  return html`<div className="app">
-    <div ref=${main} className="main-wrap" style=${{display:'contents'}}>
-      <header className="top">
-        <span className="brand">Найм</span>
-        <${RolePicker}/>
-        ${(me.role === 'manager' || me.role === 'hrd') && html`<${Btn} kind="primary" aria-label="Создать заявку" onClick=${() => go('#/new')}><${Icon} n="plus"/><span className="hide-s">Создать заявку</span><//>`}
-      </header>
-      <div className="head">
-        <h1 className="h1">Заявки на подбор</h1>
-        <label className="search"><span className="sr">Поиск заявок</span><${Icon} n="search"/>
-          <input type="search" value=${q} onInput=${e => setQ(e.target.value)} placeholder="Должность, проект, человек"/></label>
-        ${mineCount > 0 && html`<button className="toggle" aria-pressed=${onlyMine} onClick=${() => setOnlyMine(!onlyMine)}>Мой ход <span className="n">${mineCount}</span></button>`}
+  return html`<div className=${'app' + (side ? '' : ' is-collapsed') + (drawer ? ' is-drawer' : '')}>
+    <div ref=${main} style=${{display:'contents'}}>
+      <${Sidebar} onNav=${nav}/>
+      ${drawer && html`<div className="scrim" onClick=${() => setDrawer(false)}/>`}
+      <div className="main">
+        <header className="bar">
+          <button className="icon-btn" aria-label=${side && !drawer ? 'Скрыть меню' : 'Показать меню'} onClick=${toggleSide}><${Icon} n="side" s=${18}/></button>
+          <${Crumbs} items=${[[tasksOnly(v) ? 'Мои задачи' : 'Заявки на подбор']]}/>
+          ${!tasksOnly(v) && html`<label className="search"><span className="sr">Поиск заявок</span><${Icon} n="search"/>
+            <input type="search" value=${q} onInput=${e => setQ(e.target.value)} placeholder="Должность, проект, человек"/></label>`}
+          ${canCreate && html`<${Btn} kind="primary" aria-label="Создать заявку" onClick=${() => nav('#/new')}><${Icon} n="plus"/><span className="hide-s">Создать заявку</span><//>`}
+        </header>
+        <main className="content">${tasksOnly(v) ? html`<${TasksPage} S=${S} v=${v}/>` : html`<${BoardPage} S=${S} v=${v} now=${now} q=${q} focusId=${shown && shown.id}/>`}</main>
       </div>
-      ${ql && !list.length ? html`<p className="empty-line">По запросу «${q.trim()}» заявок нет</p>` : null}
-      <${Board} list=${list} v=${v} now=${now} current=${shown && shown.id} onOpen=${id => go('#/r/' + id)} version=${Store.version()}/>
     </div>
     ${shown && html`<${Fragment}>
-      <div className="scrim" ref=${scrim} onClick=${close}/>
-      <aside className=${'panel' + (shown.form ? ' is-wide' : '')} ref=${panel} role="dialog" aria-modal="true" aria-label=${shown.form ? 'Заявка на подбор' : sr ? sr.title : ''}>${content}</aside>
+      <div className="scrim is-modal" ref=${scrim} onClick=${close}/>
+      <div className="modal-wrap">
+      <div className=${'modal' + (wide ? '' : ' is-narrow') + (tall ? ' is-tall' : '')} ref=${modal} role="dialog" aria-modal="true" aria-label=${label}>
+        <div className="m-head">
+          <div className="m-slot" ref=${setSlot}/>
+          <button className="icon-btn m-x" aria-label="Закрыть" onClick=${close}><${Icon} n="x" s=${18}/></button>
+        </div>
+        <div className="m-strip" ref=${setStrip}/>
+        <div className="m-body" ref=${body}><${ModalSlot.Provider} value=${slot && {head:slot, strip, foot}}>${content}<//></div>
+        <div className="m-foot" ref=${setFoot}/>
+      </div>
+      </div>
     <//>`}
   </div>`;
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(html`<${App}/>`);
+/* на сервере сначала ждём данные и людей: экранам нужен тот, кто смотрит */
+Store.ready.then(() => {
+  const root = document.getElementById('root');
+  if(!Store.viewer()){ root.innerHTML = '<p class="boot-msg">В воронке пока нет участников. Выдайте людям роли HR-директор, Рекрутер или Менеджер в «Администрировании».</p>'; return; }
+  ReactDOM.createRoot(root).render(html`<${App}/>`);
+}, e => {
+  const p = document.createElement('p'); p.className = 'boot-msg'; p.textContent = 'Воронка не загрузилась: ' + (e && e.message || 'сервер недоступен') + '. Обновите страницу.';
+  document.getElementById('root').replaceChildren(p);
+});
